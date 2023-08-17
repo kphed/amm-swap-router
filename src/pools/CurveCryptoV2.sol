@@ -26,7 +26,7 @@ interface ICurveCryptoV2 {
     ) external returns (uint256);
 }
 
-contract CurveStableSwap {
+contract CurveCryptoV2 {
     function quoteTokenOutput(
         address pool,
         uint256 inputToken,

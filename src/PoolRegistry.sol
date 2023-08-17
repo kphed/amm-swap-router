@@ -1,59 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
-import {EnumerableMap} from "openzeppelin/utils/structs/EnumerableMap.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 contract PoolRegistry is Ownable {
-    struct Path {
+    struct Pool {
         address pool;
-        address inputToken;
-        address outputToken;
+        address[] coins;
     }
 
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
+    Pool[] public pools;
 
-    EnumerableMap.AddressToUintMap private _pools;
-    mapping(bytes32 pair => Path[][] path) public paths;
-
-    event SetPool(
-        address indexed pool,
-        address indexed poolInterface,
-        bool indexed isNew
-    );
-    event SetPaths(
-        address indexed inputToken,
-        address indexed outputToken,
-        Path[][] newPaths
-    );
+    event SetPool(address indexed pool);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
     }
 
-    function _addrToUint256(address addr) private pure returns (uint256) {
-        return uint256(uint160(addr));
-    }
-
-    function _uint256ToAddr(uint256 addr) private pure returns (address) {
-        return address(uint160(addr));
-    }
-
-    function setPool(address pool, address poolInterface) external onlyOwner {
-        bool isNew = _pools.set(pool, _addrToUint256(poolInterface));
-
-        emit SetPool(pool, poolInterface, isNew);
-    }
-
-    function setPaths(
-        address inputToken,
-        address outputToken,
-        Path[][] memory newPaths
+    function setPool(
+        address pool,
+        address[] calldata coins
     ) external onlyOwner {
-        bytes32 pair = keccak256(abi.encodePacked(inputToken, outputToken));
+        pools.push(Pool(pool, coins));
 
-        paths[pair] = newPaths;
+        emit SetPool(pool);
+    }
 
-        emit SetPaths(inputToken, outputToken, newPaths);
+    function getPool(uint256 index) external view returns (Pool memory) {
+        return pools[index];
+    }
+
+    function getAllPools() external view returns (Pool[] memory) {
+        return pools;
     }
 }

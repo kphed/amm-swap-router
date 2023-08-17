@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
-
 interface ICurveCryptoV2 {
     function get_dy(
         uint256 i,
@@ -24,48 +22,63 @@ interface ICurveCryptoV2 {
         bool useEth,
         address receiver
     ) external returns (uint256);
+
+    function coins(uint256 index) external view returns (address);
 }
 
 contract CurveCryptoV2 {
+    ICurveCryptoV2 public immutable pool;
+
+    mapping(address token => uint256 index) public coins;
+
+    constructor(ICurveCryptoV2 _pool, uint256 coinsCount) {
+        pool = _pool;
+
+        for (uint256 i = 0; i < coinsCount; ) {
+            coins[pool.coins(i)] = i;
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function quoteTokenOutput(
-        address pool,
-        uint256 inputToken,
-        uint256 outputToken,
+        address inputToken,
+        address outputToken,
         uint256 inputTokenAmount
     ) external view returns (uint256) {
         return
-            ICurveCryptoV2(pool).get_dy(
-                inputToken,
-                outputToken,
+            pool.get_dy(
+                coins[inputToken],
+                coins[outputToken],
                 inputTokenAmount
             );
     }
 
     function quoteTokenInput(
-        address pool,
-        uint256 inputToken,
-        uint256 outputToken,
+        address inputToken,
+        address outputToken,
         uint256 outputTokenAmount
     ) external view returns (uint256) {
         return
-            ICurveCryptoV2(pool).get_dx(
-                inputToken,
-                outputToken,
+            pool.get_dx(
+                coins[inputToken],
+                coins[outputToken],
                 outputTokenAmount
             );
     }
 
     function swap(
-        address pool,
-        uint256 inputToken,
-        uint256 outputToken,
+        address inputToken,
+        address outputToken,
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount
     ) external returns (uint256) {
         return
-            ICurveCryptoV2(pool).exchange(
-                inputToken,
-                outputToken,
+            pool.exchange(
+                coins[inputToken],
+                coins[outputToken],
                 inputTokenAmount,
                 minOutputTokenAmount,
                 false,

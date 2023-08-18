@@ -2,8 +2,11 @@
 pragma solidity 0.8.21;
 
 import {Ownable} from "solady/auth/Ownable.sol";
+import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 contract PoolRegistry is Ownable {
+    using SafeCastLib for uint256;
+
     struct Pool {
         address pool;
         address[] coins;
@@ -11,8 +14,8 @@ contract PoolRegistry is Ownable {
 
     struct Swap {
         address pool;
-        address inputToken;
-        address outputToken;
+        uint48 inputTokenIndex;
+        uint48 outputTokenIndex;
     }
 
     struct Path {
@@ -67,8 +70,8 @@ contract PoolRegistry is Ownable {
             )
         ] = Swap(
             pool.pool,
-            pool.coins[inputTokenIndex],
-            pool.coins[outputTokenIndex]
+            inputTokenIndex.toUint48(),
+            outputTokenIndex.toUint48()
         );
 
         emit SetSwap(

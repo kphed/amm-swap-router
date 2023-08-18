@@ -30,8 +30,11 @@ contract PoolRegistry is Ownable {
     // Swap hashes (pool, input index, output index) mapped to swap details.
     mapping(bytes32 swapHash => Swap swap) public swaps;
 
-    // Pash hashes (current swap hash, next swap hash) mapped to path details.
+    // Path hashes (current swap hash, next swap hash) mapped to path details.
     mapping(bytes32 pathHash => Path path) public paths;
+
+    // Token pairs mapped to their *head* path hashes.
+    mapping(bytes32 tokenPairHash => bytes32[] pathHashes) public swapPaths;
 
     event SetPool(address indexed pool);
     event SetSwap(
@@ -40,6 +43,8 @@ contract PoolRegistry is Ownable {
         address indexed outputToken
     );
     event SetPath(bytes32[] swapHashes, bytes32[] pathHashes);
+    event AddSwapPath(bytes32 indexed tokenPairHash, bytes32 indexed pathHash);
+    event RemoveSwapPath(bytes32 indexed tokenPairHash, uint256 pathHashIndex);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -112,6 +117,41 @@ contract PoolRegistry is Ownable {
         }
 
         emit SetPath(swapHashes, pathHashes);
+    }
+
+    function addSwapPath(
+        address inputToken,
+        address outputToken,
+        bytes32 pathHash
+    ) external onlyOwner {
+        bytes32 tokenPairHash = keccak256(
+            abi.encodePacked(inputToken, outputToken)
+        );
+
+        swapPaths[tokenPairHash].push(pathHash);
+
+        emit AddSwapPath(tokenPairHash, pathHash);
+    }
+
+    function removeSwapPath(
+        address inputToken,
+        address outputToken,
+        uint256 pathHashIndex
+    ) external onlyOwner {
+        bytes32 tokenPairHash = keccak256(
+            abi.encodePacked(inputToken, outputToken)
+        );
+        bytes32[] storage pathHashes = swapPaths[tokenPairHash];
+        uint256 lastIndex = pathHashes.length - 1;
+
+        if (pathHashIndex != lastIndex) {
+            // Replace the target removal element with the last element in the array.
+            pathHashes[pathHashIndex] = pathHashes[lastIndex];
+        }
+
+        pathHashes.pop();
+
+        emit RemoveSwapPath(tokenPairHash, pathHashIndex);
     }
 
     function getPool(uint256 index) external view returns (Pool memory) {

@@ -30,6 +30,11 @@ contract PoolRegistry is Ownable {
     mapping(bytes32 tokenPairHash => Path[] path) public paths;
 
     event SetPool(address indexed pool);
+    event SetSwap(
+        address indexed pool,
+        address indexed inputToken,
+        address indexed outputToken
+    );
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -42,6 +47,35 @@ contract PoolRegistry is Ownable {
         pools.push(Pool(pool, coins));
 
         emit SetPool(pool);
+    }
+
+    function setSwap(
+        uint256 poolIndex,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex
+    ) external onlyOwner {
+        Pool memory pool = pools[poolIndex];
+
+        swaps[
+            keccak256(
+                // Allows us to store the swap at a unique ID and easily look up.
+                abi.encode(
+                    pool.pool,
+                    pool.coins[inputTokenIndex],
+                    pool.coins[outputTokenIndex]
+                )
+            )
+        ] = Swap(
+            pool.pool,
+            pool.coins[inputTokenIndex],
+            pool.coins[outputTokenIndex]
+        );
+
+        emit SetSwap(
+            pool.pool,
+            pool.coins[inputTokenIndex],
+            pool.coins[outputTokenIndex]
+        );
     }
 
     function getPool(uint256 index) external view returns (Pool memory) {

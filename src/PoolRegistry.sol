@@ -33,15 +33,13 @@ contract PoolRegistry is Ownable {
     // Pash hashes (current swap hash, next swap hash) mapped to path details.
     mapping(bytes32 pathHash => Path path) public paths;
 
-    // Token swap paths for a single pair.
-    mapping(bytes32 tokenPairHash => bytes32[] swapHashes) public swapPaths;
-
     event SetPool(address indexed pool);
     event SetSwap(
         address indexed pool,
         address indexed inputToken,
         address indexed outputToken
     );
+    event SetPath(bytes32[] swapHashes, bytes32[] pathHashes);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -83,31 +81,37 @@ contract PoolRegistry is Ownable {
         );
     }
 
-    function setPath(bytes32[] calldata swapHashes) external onlyOwner {
-        // Start from the last swap hash index.
-        uint256 swapHashIndex = swapHashes.length - 1;
+    function setPath(
+        bytes32[] calldata swapHashes
+    ) external onlyOwner returns (bytes32[] memory pathHashes) {
+        uint256 swapHashCounter = swapHashes.length;
+        bytes32 nextPathHash;
+        bytes32 pathHash;
 
-        // Compute the tail nextPathHash since it's a special case.
-        bytes32 nextPathHash = keccak256(
-            abi.encode(swapHashes[swapHashIndex], bytes32(0))
-        );
+        pathHashes = new bytes32[](swapHashCounter);
 
         while (true) {
-            --swapHashIndex;
+            --swapHashCounter;
 
             // Compute the current path hash (swap hash and next path hash).
-            bytes32 pathHash = keccak256(
-                abi.encode(swapHashes[swapHashIndex], nextPathHash)
+            pathHash = keccak256(
+                abi.encode(swapHashes[swapHashCounter], nextPathHash)
             );
 
-            // Store the path in order to retrieve in the future.
-            paths[pathHash] = Path(pathHash, nextPathHash);
+            // Store the path hash which will later be emitted.
+            pathHashes[swapHashCounter] = pathHash;
+
+            // Set the path in storage.
+            paths[pathHash] = Path(swapHashes[swapHashCounter], nextPathHash);
 
             // Update the next path hash to the current.
             nextPathHash = pathHash;
 
-            if (swapHashIndex == 0) break;
+            // Loop ends if we're already at the first element.
+            if (swapHashCounter == 0) break;
         }
+
+        emit SetPath(swapHashes, pathHashes);
     }
 
     function getPool(uint256 index) external view returns (Pool memory) {

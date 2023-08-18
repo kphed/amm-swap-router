@@ -9,7 +9,25 @@ contract PoolRegistry is Ownable {
         address[] coins;
     }
 
+    struct Swap {
+        address pool;
+        address inputToken;
+        address outputToken;
+    }
+
+    struct Path {
+        address path;
+        bytes32 nextPathHash;
+    }
+
+    // Liquidity pools.
     Pool[] public pools;
+
+    // Swaps.
+    mapping(bytes32 swapHash => Swap swap) public swaps;
+
+    // Token swap paths for a single pair.
+    mapping(bytes32 tokenPairHash => Path[] path) public paths;
 
     event SetPool(address indexed pool);
 

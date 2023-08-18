@@ -9,7 +9,7 @@ contract PoolRegistry is Ownable {
 
     struct Pool {
         address pool;
-        address[] coins;
+        address[] tokens;
     }
 
     struct Swap {
@@ -19,18 +19,22 @@ contract PoolRegistry is Ownable {
     }
 
     struct Path {
-        address path;
+        bytes32 swapHash;
+        // Hash of the current swapHash and the next swapHash.
         bytes32 nextPathHash;
     }
 
     // Liquidity pools.
     Pool[] public pools;
 
-    // Swaps.
+    // Swap hashes (pool, input index, output index) mapped to swap details.
     mapping(bytes32 swapHash => Swap swap) public swaps;
 
+    // Pash hashes (current swap hash, next swap hash) mapped to path details.
+    mapping(bytes32 pathHash => Path path) public paths;
+
     // Token swap paths for a single pair.
-    mapping(bytes32 tokenPairHash => Path[] path) public paths;
+    mapping(bytes32 tokenPairHash => bytes32[] swapHashes) public swapPaths;
 
     event SetPool(address indexed pool);
     event SetSwap(
@@ -45,9 +49,9 @@ contract PoolRegistry is Ownable {
 
     function setPool(
         address pool,
-        address[] calldata coins
+        address[] calldata tokens
     ) external onlyOwner {
-        pools.push(Pool(pool, coins));
+        pools.push(Pool(pool, tokens));
 
         emit SetPool(pool);
     }
@@ -56,19 +60,17 @@ contract PoolRegistry is Ownable {
         uint256 poolIndex,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex
-    ) external onlyOwner {
+    ) external onlyOwner returns (bytes32 swapHash) {
         Pool memory pool = pools[poolIndex];
-
-        swaps[
-            keccak256(
-                // Allows us to store the swap at a unique ID and easily look up.
-                abi.encode(
-                    pool.pool,
-                    pool.coins[inputTokenIndex],
-                    pool.coins[outputTokenIndex]
-                )
+        swapHash = keccak256(
+            // Allows us to store the swap at a unique ID and easily look up.
+            abi.encode(
+                pool.pool,
+                pool.tokens[inputTokenIndex],
+                pool.tokens[outputTokenIndex]
             )
-        ] = Swap(
+        );
+        swaps[swapHash] = Swap(
             pool.pool,
             inputTokenIndex.toUint48(),
             outputTokenIndex.toUint48()
@@ -76,9 +78,36 @@ contract PoolRegistry is Ownable {
 
         emit SetSwap(
             pool.pool,
-            pool.coins[inputTokenIndex],
-            pool.coins[outputTokenIndex]
+            pool.tokens[inputTokenIndex],
+            pool.tokens[outputTokenIndex]
         );
+    }
+
+    function setPath(bytes32[] calldata swapHashes) external onlyOwner {
+        // Start from the last swap hash index.
+        uint256 swapHashIndex = swapHashes.length - 1;
+
+        // Compute the tail nextPathHash since it's a special case.
+        bytes32 nextPathHash = keccak256(
+            abi.encode(swapHashes[swapHashIndex], bytes32(0))
+        );
+
+        while (true) {
+            --swapHashIndex;
+
+            // Compute the current path hash (swap hash and next path hash).
+            bytes32 pathHash = keccak256(
+                abi.encode(swapHashes[swapHashIndex], nextPathHash)
+            );
+
+            // Store the path in order to retrieve in the future.
+            paths[pathHash] = Path(pathHash, nextPathHash);
+
+            // Update the next path hash to the current.
+            nextPathHash = pathHash;
+
+            if (swapHashIndex == 0) break;
+        }
     }
 
     function getPool(uint256 index) external view returns (Pool memory) {

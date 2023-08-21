@@ -6,6 +6,7 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {PoolRegistry} from "src/PoolRegistry.sol";
 import {ICurveCryptoV2, CurveCryptoV2} from "src/pools/CurveCryptoV2.sol";
 import {ICurveStableSwap, CurveStableSwap} from "src/pools/CurveStableSwap.sol";
+import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistryTest is Test {
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
@@ -37,76 +38,71 @@ contract PoolRegistryTest is Test {
 
     PoolRegistry public immutable registry = new PoolRegistry(address(this));
 
-    event SetPool(address indexed pool, address[] tokens);
+    event AddPool(
+        address indexed pool,
+        uint256 indexed poolIndex,
+        uint256 indexed tokenCount,
+        address[] tokens
+    );
 
-    constructor() {
-        address[] memory crvusdUSDTCoins = new address[](2);
-        crvusdUSDTCoins[0] = CRVUSD;
-        crvusdUSDTCoins[1] = USDT;
-        address[] memory crvusdUSDCCoins = new address[](2);
-        crvusdUSDCCoins[0] = CRVUSD;
-        crvusdUSDCCoins[1] = USDC;
-        address[] memory crvusdETHCRVCoins = new address[](3);
-        crvusdETHCRVCoins[0] = CRVUSD;
-        crvusdETHCRVCoins[1] = WETH;
-        crvusdETHCRVCoins[2] = CRV;
-        address[] memory usdtWBTCETHCoins = new address[](3);
-        usdtWBTCETHCoins[0] = USDT;
-        usdtWBTCETHCoins[1] = WBTC;
-        usdtWBTCETHCoins[2] = WETH;
-        address[] memory usdcWBTCETHCoins = new address[](3);
-        usdcWBTCETHCoins[0] = USDC;
-        usdcWBTCETHCoins[1] = WBTC;
-        usdcWBTCETHCoins[2] = WETH;
+    /*//////////////////////////////////////////////////////////////
+                             addPool
+    //////////////////////////////////////////////////////////////*/
 
-        registry.setPool(SP_CRVUSD_USDT, crvusdUSDTCoins);
-        registry.setPool(SP_CRVUSD_USDC, crvusdUSDCCoins);
-        registry.setPool(SP_CRVUSD_ETH_CRV, crvusdETHCRVCoins);
-        registry.setPool(SP_USDT_WBTC_ETH, usdtWBTCETHCoins);
-        registry.setPool(SP_USDC_WBTC_ETH, usdcWBTCETHCoins);
-    }
-
-    // /*//////////////////////////////////////////////////////////////
-    //                          setPool
-    // //////////////////////////////////////////////////////////////*/
-
-    function testCannotSetPool() external {
+    function testCannotAddPool_Unauthorized() external {
         address unauthorizedMsgSender = address(0);
-        address pool = address(1);
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(2);
-        tokens[1] = address(3);
 
         assertTrue(unauthorizedMsgSender != registry.owner());
 
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.setPool(pool, tokens);
+        registry.addPool(SP_CRVUSD_USDT);
     }
 
-    function testSetPool() external {
+    function testCannotAddPool_PoolAlreadyExists() external {
         address msgSender = address(this);
-        address pool = address(1);
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(2);
-        tokens[1] = address(3);
+        address pool = SP_CRVUSD_USDT;
 
         assertEq(msgSender, registry.owner());
 
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            assertEq(address(0), registry.pools(pool, i));
+        vm.startPrank(msgSender);
+
+        registry.addPool(pool);
+
+        vm.expectRevert(PoolRegistry.PoolAlreadyExists.selector);
+
+        registry.addPool(pool);
+
+        vm.stopPrank();
+    }
+
+    function testAddPool() external {
+        address msgSender = address(this);
+        address pool = SP_CRVUSD_USDT;
+        address[] memory poolTokens = IStandardPool(pool).tokens();
+
+        assertEq(msgSender, registry.owner());
+        assertEq(0, registry.pools(pool));
+
+        uint256 poolIndex = registry.nextPoolIndex();
+
+        for (uint256 i = 0; i < poolTokens.length; ++i) {
+            assertFalse(registry.getTokenPool(poolTokens[i], poolIndex));
         }
 
         vm.prank(msgSender);
-        vm.expectEmit(true, false, false, true, address(registry));
+        vm.expectEmit(true, true, true, true, address(registry));
 
-        emit SetPool(pool, tokens);
+        emit AddPool(pool, poolIndex, poolTokens.length, poolTokens);
 
-        registry.setPool(pool, tokens);
+        registry.addPool(pool);
 
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            assertEq(tokens[i], registry.pools(pool, i));
+        assertEq(poolTokens.length, registry.pools(pool));
+        assertEq(pool, registry.poolIndexes(poolIndex));
+
+        for (uint256 i = 0; i < poolTokens.length; ++i) {
+            assertTrue(registry.getTokenPool(poolTokens[i], poolIndex));
         }
     }
 }

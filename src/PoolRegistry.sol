@@ -3,14 +3,10 @@ pragma solidity 0.8.21;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistry is Ownable {
     using SafeCastLib for uint256;
-
-    struct Pool {
-        address pool;
-        address[] tokens;
-    }
 
     struct Swap {
         address pool;
@@ -24,8 +20,7 @@ contract PoolRegistry is Ownable {
         bytes32 nextPathHash;
     }
 
-    // Liquidity pools.
-    Pool[] public pools;
+    mapping(address pool => mapping(uint256 => address token)) public pools;
 
     // Swap hashes (pool, input index, output index) mapped to swap details.
     mapping(bytes32 swapHash => Swap swap) public swaps;
@@ -36,7 +31,7 @@ contract PoolRegistry is Ownable {
     // Token pairs mapped to their *head* path hashes.
     mapping(bytes32 tokenPairHash => bytes32[] pathHashes) public swapPaths;
 
-    event SetPool(address indexed pool);
+    event SetPool(address indexed pool, address[] tokens);
     event SetSwap(
         address indexed pool,
         address indexed inputToken,
@@ -54,35 +49,42 @@ contract PoolRegistry is Ownable {
         address pool,
         address[] calldata tokens
     ) external onlyOwner {
-        pools.push(Pool(pool, tokens));
+        uint256 tokensLength = tokens.length;
 
-        emit SetPool(pool);
+        for (uint256 i = 0; i < tokensLength; ) {
+            pools[pool][i] = tokens[i];
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit SetPool(pool, tokens);
     }
 
     function setSwap(
-        uint256 poolIndex,
+        address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex
     ) external onlyOwner returns (bytes32 swapHash) {
-        Pool memory pool = pools[poolIndex];
         swapHash = keccak256(
             // Allows us to store the swap at a unique ID and easily look up.
             abi.encode(
-                pool.pool,
-                pool.tokens[inputTokenIndex],
-                pool.tokens[outputTokenIndex]
+                pool,
+                pools[pool][inputTokenIndex],
+                pools[pool][outputTokenIndex]
             )
         );
         swaps[swapHash] = Swap(
-            pool.pool,
+            pool,
             inputTokenIndex.toUint48(),
             outputTokenIndex.toUint48()
         );
 
         emit SetSwap(
-            pool.pool,
-            pool.tokens[inputTokenIndex],
-            pool.tokens[outputTokenIndex]
+            pool,
+            pools[pool][inputTokenIndex],
+            pools[pool][outputTokenIndex]
         );
     }
 
@@ -152,13 +154,5 @@ contract PoolRegistry is Ownable {
         pathHashes.pop();
 
         emit RemoveSwapPath(tokenPairHash, pathHashIndex);
-    }
-
-    function getPool(uint256 index) external view returns (Pool memory) {
-        return pools[index];
-    }
-
-    function getAllPools() external view returns (Pool[] memory) {
-        return pools;
     }
 }

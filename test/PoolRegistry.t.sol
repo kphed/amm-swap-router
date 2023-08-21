@@ -23,6 +23,16 @@ contract PoolRegistryTest is Test {
         0xf5f5B97624542D72A9E06f04804Bf81baA15e2B4;
     address public constant USDC_WBTC_ETH =
         0x7F86Bf177Dd4F3494b841a37e810A34dD56c829B;
+    address public immutable SP_CRVUSD_USDT =
+        address(new CurveStableSwap(CRVUSD_USDT, 2));
+    address public immutable SP_CRVUSD_USDC =
+        address(new CurveStableSwap(CRVUSD_USDC, 2));
+    address public immutable SP_CRVUSD_ETH_CRV =
+        address(new CurveCryptoV2(CRVUSD_ETH_CRV, 3));
+    address public immutable SP_USDT_WBTC_ETH =
+        address(new CurveCryptoV2(USDT_WBTC_ETH, 3));
+    address public immutable SP_USDC_WBTC_ETH =
+        address(new CurveCryptoV2(USDC_WBTC_ETH, 3));
 
     PoolRegistry public immutable registry = new PoolRegistry(address(this));
 
@@ -46,10 +56,10 @@ contract PoolRegistryTest is Test {
         usdcWBTCETHCoins[1] = WBTC;
         usdcWBTCETHCoins[2] = WETH;
 
-        registry.setPool(CRVUSD_USDT, crvusdUSDTCoins);
-        registry.setPool(CRVUSD_USDC, crvusdUSDCCoins);
-        registry.setPool(CRVUSD_ETH_CRV, crvusdETHCRVCoins);
-        registry.setPool(USDT_WBTC_ETH, usdtWBTCETHCoins);
-        registry.setPool(USDC_WBTC_ETH, usdcWBTCETHCoins);
+        registry.setPool(SP_CRVUSD_USDT, crvusdUSDTCoins);
+        registry.setPool(SP_CRVUSD_USDC, crvusdUSDCCoins);
+        registry.setPool(SP_CRVUSD_ETH_CRV, crvusdETHCRVCoins);
+        registry.setPool(SP_USDT_WBTC_ETH, usdtWBTCETHCoins);
+        registry.setPool(SP_USDC_WBTC_ETH, usdcWBTCETHCoins);
     }
 }

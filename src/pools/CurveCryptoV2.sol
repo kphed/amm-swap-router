@@ -29,18 +29,29 @@ interface ICurveCryptoV2 {
 contract CurveCryptoV2 {
     ICurveCryptoV2 public immutable pool;
 
-    mapping(address token => uint256 index) public coins;
+    address[] private _tokens;
+
+    // Token addresses to their indexes for easy lookups.
+    mapping(address token => uint256 index) public tokenIndexes;
 
     constructor(address _pool, uint256 coinsCount) {
         pool = ICurveCryptoV2(_pool);
+        address token;
 
         for (uint256 i = 0; i < coinsCount; ) {
-            coins[pool.coins(i)] = i;
+            token = pool.coins(i);
+            tokenIndexes[token] = i;
+
+            _tokens.push(token);
 
             unchecked {
                 ++i;
             }
         }
+    }
+
+    function tokens() external view returns (address[] memory) {
+        return _tokens;
     }
 
     function quoteTokenOutput(
@@ -50,8 +61,8 @@ contract CurveCryptoV2 {
     ) external view returns (uint256) {
         return
             pool.get_dy(
-                coins[inputToken],
-                coins[outputToken],
+                tokenIndexes[inputToken],
+                tokenIndexes[outputToken],
                 inputTokenAmount
             );
     }
@@ -63,8 +74,8 @@ contract CurveCryptoV2 {
     ) external view returns (uint256) {
         return
             pool.get_dx(
-                coins[inputToken],
-                coins[outputToken],
+                tokenIndexes[inputToken],
+                tokenIndexes[outputToken],
                 outputTokenAmount
             );
     }
@@ -77,8 +88,8 @@ contract CurveCryptoV2 {
     ) external returns (uint256) {
         return
             pool.exchange(
-                coins[inputToken],
-                coins[outputToken],
+                tokenIndexes[inputToken],
+                tokenIndexes[outputToken],
                 inputTokenAmount,
                 minOutputTokenAmount,
                 false,

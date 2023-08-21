@@ -32,18 +32,29 @@ contract CurveStableSwap {
 
     ICurveStableSwap public immutable pool;
 
-    mapping(address token => int128 index) public coins;
+    address[] private _tokens;
+
+    // Token addresses to their indexes for easy lookups.
+    mapping(address token => uint256 index) public tokenIndexes;
 
     constructor(address _pool, uint256 coinsCount) {
         pool = ICurveStableSwap(_pool);
+        address token;
 
         for (uint256 i = 0; i < coinsCount; ) {
-            coins[pool.coins(i)] = int256(i).toInt128();
+            token = pool.coins(i);
+            tokenIndexes[token] = i;
+
+            _tokens.push(token);
 
             unchecked {
                 ++i;
             }
         }
+    }
+
+    function tokens() external view returns (address[] memory) {
+        return _tokens;
     }
 
     function quoteTokenOutput(
@@ -53,8 +64,8 @@ contract CurveStableSwap {
     ) external view returns (uint256) {
         return
             ICurveStableSwap(pool).get_dy(
-                coins[inputToken],
-                coins[outputToken],
+                int256(tokenIndexes[inputToken]).toInt128(),
+                int256(tokenIndexes[outputToken]).toInt128(),
                 inputTokenAmount
             );
     }
@@ -66,8 +77,8 @@ contract CurveStableSwap {
     ) external view returns (uint256) {
         return
             ICurveStableSwap(pool).get_dx(
-                coins[inputToken],
-                coins[outputToken],
+                int256(tokenIndexes[inputToken]).toInt128(),
+                int256(tokenIndexes[outputToken]).toInt128(),
                 outputTokenAmount
             );
     }
@@ -80,8 +91,8 @@ contract CurveStableSwap {
     ) external returns (uint256) {
         return
             ICurveStableSwap(pool).exchange(
-                coins[inputToken],
-                coins[outputToken],
+                int256(tokenIndexes[inputToken]).toInt128(),
+                int256(tokenIndexes[outputToken]).toInt128(),
                 inputTokenAmount,
                 minOutputTokenAmount,
                 address(this)

@@ -44,6 +44,12 @@ contract PoolRegistryTest is Test {
         uint256 indexed tokenCount,
         address[] tokens
     );
+    event AddExchangePath(
+        bytes32 indexed tokenPair,
+        uint256 indexed newPathIndex,
+        uint256 indexed newPathLength,
+        bytes32[] newPath
+    );
 
     /*//////////////////////////////////////////////////////////////
                              addPool
@@ -70,7 +76,7 @@ contract PoolRegistryTest is Test {
 
         registry.addPool(pool);
 
-        vm.expectRevert(PoolRegistry.PoolAlreadyExists.selector);
+        vm.expectRevert(PoolRegistry.Duplicate.selector);
 
         registry.addPool(pool);
 
@@ -114,6 +120,78 @@ contract PoolRegistryTest is Test {
         }
 
         assertEq(poolTokens.length, registry.pools(pool));
-        assertEq(pool, registry.poolIndexes(poolIndex));
+        assertEq(pool, registry.poolsByIndex(poolIndex));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             addExchangePath
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotAddExchangePath_Unauthorized() external {
+        address unauthorizedMsgSender = address(0);
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        // TODO: Consider validating params (though, permissioned method so may not be necessary)
+        registry.addExchangePath(bytes32(0), new bytes32[](0));
+    }
+
+    function testAddExchangePath() external {
+        bytes32 tokenPair = keccak256(abi.encodePacked(CRVUSD, WETH));
+        uint256 exchangePathIndex = 0;
+        address[] memory pools = new address[](2);
+        uint48[][] memory tokens = new uint48[][](2);
+        bytes32[] memory newPath = new bytes32[](2);
+        pools[0] = SP_CRVUSD_USDC;
+        pools[1] = SP_USDC_WBTC_ETH;
+        tokens[0] = new uint48[](2);
+        tokens[1] = new uint48[](2);
+        tokens[0][0] = uint48(
+            IStandardPool(SP_CRVUSD_USDC).tokenIndexes(CRVUSD)
+        );
+        tokens[0][1] = uint48(IStandardPool(SP_CRVUSD_USDC).tokenIndexes(USDC));
+        tokens[1][0] = uint48(
+            IStandardPool(SP_USDC_WBTC_ETH).tokenIndexes(USDC)
+        );
+        tokens[1][1] = uint48(
+            IStandardPool(SP_USDC_WBTC_ETH).tokenIndexes(WETH)
+        );
+
+        for (uint256 i = 0; i < pools.length; ++i) {
+            registry.addPool(pools[i]);
+
+            newPath[i] = bytes32(
+                abi.encodePacked(pools[i], tokens[i][0], tokens[i][1])
+            );
+        }
+
+        vm.expectEmit(true, true, true, true, address(registry));
+
+        emit AddExchangePath(
+            tokenPair,
+            exchangePathIndex,
+            newPath.length,
+            newPath
+        );
+
+        registry.addExchangePath(tokenPair, newPath);
+
+        (
+            uint256 nextIndex,
+            address[] memory exchangePathPools,
+            uint48[] memory inputTokenIndexes,
+            uint48[] memory outputTokenIndexes
+        ) = registry.exchangePath(tokenPair, exchangePathIndex);
+
+        assertEq(exchangePathIndex, nextIndex - 1);
+
+        for (uint256 i = 0; i < pools.length; ++i) {
+            assertEq(pools[i], exchangePathPools[i]);
+            assertEq(tokens[i][0], inputTokenIndexes[i]);
+            assertEq(tokens[i][1], outputTokenIndexes[i]);
+        }
     }
 }

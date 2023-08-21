@@ -5,22 +5,37 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {Solarray} from "solarray/Solarray.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
+import {LinkedList} from "src/lib/LinkedList.sol";
 
 contract PoolRegistry is Ownable {
     using LibBitmap for LibBitmap.Bitmap;
     using Solarray for address[];
+    using LinkedList for LinkedList.List;
+
+    struct ExchangePaths {
+        uint256 nextIndex;
+        mapping(uint256 index => LinkedList.List path) paths;
+    }
+
+    // Byte offsets for decoding paths (packed ABI encoding).
+    uint256 private constant PATH_ADDRESS_OFFSET = 20;
+    uint256 private constant PATH_INPUT_TOKEN_INDEX_OFFSET = 6;
+    uint256 private constant PATH_OUTPUT_TOKEN_INDEX_OFFSET = 6;
 
     // Maintaining a numeric index allows our pools to be enumerated.
     uint256 public nextPoolIndex = 0;
 
-    // Liquidity pools and their token count.
+    // Pools mapped to their token count for easy lookup and dupe-checking.
     mapping(address pool => uint256 tokenCount) public pools;
 
     // Pool indexes mapped to pool addresses.
-    mapping(uint256 index => address pool) public poolIndexes;
+    mapping(uint256 index => address pool) public poolsByIndex;
+
+    // Token pairs mapped to their exchange paths.
+    mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
 
     // Token addresses mapped to pool indexes (pool index = bit).
-    mapping(address token => LibBitmap.Bitmap poolIndexes)
+    mapping(address token => LibBitmap.Bitmap poolIndexMap)
         private _poolsByToken;
 
     event AddPool(
@@ -29,11 +44,47 @@ contract PoolRegistry is Ownable {
         uint256 indexed tokenCount,
         address[] tokens
     );
+    event AddExchangePath(
+        bytes32 indexed tokenPair,
+        uint256 indexed newPathIndex,
+        uint256 indexed newPathLength,
+        bytes32[] newPath
+    );
 
-    error PoolAlreadyExists();
+    error Duplicate();
+    error EmptyArray();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
+    }
+
+    function _decodePath(
+        bytes32 path
+    )
+        private
+        pure
+        returns (address pool, uint48 inputTokenIndex, uint48 outputTokenIndex)
+    {
+        bytes memory _path = abi.encodePacked(path);
+
+        assembly {
+            pool := mload(add(_path, PATH_ADDRESS_OFFSET))
+            inputTokenIndex := mload(
+                add(
+                    _path,
+                    add(PATH_ADDRESS_OFFSET, PATH_INPUT_TOKEN_INDEX_OFFSET)
+                )
+            )
+            outputTokenIndex := mload(
+                add(
+                    _path,
+                    add(
+                        add(PATH_ADDRESS_OFFSET, PATH_INPUT_TOKEN_INDEX_OFFSET),
+                        PATH_INPUT_TOKEN_INDEX_OFFSET
+                    )
+                )
+            )
+        }
     }
 
     /**
@@ -41,7 +92,7 @@ contract PoolRegistry is Ownable {
      * @param  pool  address  Liquidity pool address.
      */
     function addPool(address pool) external onlyOwner {
-        if (pools[pool] != 0) revert PoolAlreadyExists();
+        if (pools[pool] != 0) revert Duplicate();
 
         address[] memory tokens = IStandardPool(pool).tokens();
 
@@ -52,7 +103,7 @@ contract PoolRegistry is Ownable {
         uint256 poolIndex = nextPoolIndex;
 
         // Map index to pool address.
-        poolIndexes[poolIndex] = pool;
+        poolsByIndex[poolIndex] = pool;
 
         unchecked {
             // Extremely unlikely to ever overflow.
@@ -76,6 +127,27 @@ contract PoolRegistry is Ownable {
         emit AddPool(pool, poolIndex, tokens.length, tokens);
     }
 
+    function addExchangePath(
+        bytes32 tokenPair,
+        bytes32[] calldata newPath
+    ) external onlyOwner {
+        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
+        uint256 newPathLength = newPath.length;
+        uint256 newPathIndex = exchangePaths.nextIndex;
+
+        ++exchangePaths.nextIndex;
+
+        for (uint256 i = 0; i < newPathLength; ) {
+            exchangePaths.paths[newPathIndex].push(newPath[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit AddExchangePath(tokenPair, newPathIndex, newPathLength, newPath);
+    }
+
     function poolsByToken(
         address token
     ) external view returns (address[] memory _pools) {
@@ -84,7 +156,42 @@ contract PoolRegistry is Ownable {
         for (uint256 i = 0; i < maxIterations; ) {
             // Check whether the bit is set and append to the list of pools for the token.
             if (_poolsByToken[token].get(i))
-                _pools = _pools.append(poolIndexes[i]);
+                _pools = _pools.append(poolsByIndex[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function exchangePath(
+        bytes32 tokenPair,
+        uint256 index
+    )
+        external
+        view
+        returns (
+            uint256 nextIndex,
+            address[] memory paths,
+            uint48[] memory inputTokenIndexes,
+            uint48[] memory outputTokenIndexes
+        )
+    {
+        bytes32[] memory path = _exchangePaths[tokenPair]
+            .paths[index]
+            .getKeys();
+        uint256 pathLength = path.length;
+        nextIndex = _exchangePaths[tokenPair].nextIndex;
+        paths = new address[](pathLength);
+        inputTokenIndexes = new uint48[](pathLength);
+        outputTokenIndexes = new uint48[](pathLength);
+
+        for (uint256 i = 0; i < pathLength; ) {
+            (
+                paths[i],
+                inputTokenIndexes[i],
+                outputTokenIndexes[i]
+            ) = _decodePath(path[i]);
 
             unchecked {
                 ++i;

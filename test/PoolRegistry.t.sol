@@ -141,7 +141,7 @@ contract PoolRegistryTest is Test {
 
     function testAddExchangePath() external {
         bytes32 tokenPair = keccak256(abi.encodePacked(CRVUSD, WETH));
-        uint256 exchangePathIndex = 0;
+        uint256 exchangePathIndex = registry.nextExchangePathIndex(tokenPair);
         address[] memory pools = new address[](2);
         uint48[][] memory tokens = new uint48[][](2);
         bytes32[] memory newPath = new bytes32[](2);
@@ -180,13 +180,15 @@ contract PoolRegistryTest is Test {
         registry.addExchangePath(tokenPair, newPath);
 
         (
-            uint256 nextIndex,
             address[] memory exchangePathPools,
             uint48[] memory inputTokenIndexes,
             uint48[] memory outputTokenIndexes
         ) = registry.exchangePath(tokenPair, exchangePathIndex);
 
-        assertEq(exchangePathIndex, nextIndex - 1);
+        assertEq(
+            exchangePathIndex + 1,
+            registry.nextExchangePathIndex(tokenPair)
+        );
 
         for (uint256 i = 0; i < pools.length; ++i) {
             assertEq(pools[i], exchangePathPools[i]);

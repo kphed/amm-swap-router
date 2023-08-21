@@ -18,9 +18,9 @@ contract PoolRegistry is Ownable {
     }
 
     // Byte offsets for decoding paths (packed ABI encoding).
-    uint256 private constant PATH_ADDRESS_OFFSET = 20;
-    uint256 private constant PATH_INPUT_TOKEN_INDEX_OFFSET = 6;
-    uint256 private constant PATH_OUTPUT_TOKEN_INDEX_OFFSET = 6;
+    uint256 private constant PATH_POOL_OFFSET = 20;
+    uint256 private constant PATH_INPUT_TOKEN_OFFSET = 26;
+    uint256 private constant PATH_OUTPUT_TOKEN_OFFSET = 32;
 
     // Maintaining a numeric index allows our pools to be enumerated.
     uint256 public nextPoolIndex = 0;
@@ -68,22 +68,9 @@ contract PoolRegistry is Ownable {
         bytes memory _path = abi.encodePacked(path);
 
         assembly {
-            pool := mload(add(_path, PATH_ADDRESS_OFFSET))
-            inputTokenIndex := mload(
-                add(
-                    _path,
-                    add(PATH_ADDRESS_OFFSET, PATH_INPUT_TOKEN_INDEX_OFFSET)
-                )
-            )
-            outputTokenIndex := mload(
-                add(
-                    _path,
-                    add(
-                        add(PATH_ADDRESS_OFFSET, PATH_INPUT_TOKEN_INDEX_OFFSET),
-                        PATH_INPUT_TOKEN_INDEX_OFFSET
-                    )
-                )
-            )
+            pool := mload(add(_path, PATH_POOL_OFFSET))
+            inputTokenIndex := mload(add(_path, PATH_INPUT_TOKEN_OFFSET))
+            outputTokenIndex := mload(add(_path, PATH_OUTPUT_TOKEN_OFFSET))
         }
     }
 
@@ -171,7 +158,6 @@ contract PoolRegistry is Ownable {
         external
         view
         returns (
-            uint256 nextIndex,
             address[] memory paths,
             uint48[] memory inputTokenIndexes,
             uint48[] memory outputTokenIndexes
@@ -181,7 +167,6 @@ contract PoolRegistry is Ownable {
             .paths[index]
             .getKeys();
         uint256 pathLength = path.length;
-        nextIndex = _exchangePaths[tokenPair].nextIndex;
         paths = new address[](pathLength);
         inputTokenIndexes = new uint48[](pathLength);
         outputTokenIndexes = new uint48[](pathLength);
@@ -197,5 +182,11 @@ contract PoolRegistry is Ownable {
                 ++i;
             }
         }
+    }
+
+    function nextExchangePathIndex(
+        bytes32 tokenPair
+    ) external view returns (uint256) {
+        return _exchangePaths[tokenPair].nextIndex;
     }
 }

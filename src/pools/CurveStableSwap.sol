@@ -34,8 +34,8 @@ contract CurveStableSwap {
 
     mapping(address token => int128 index) public coins;
 
-    constructor(ICurveStableSwap _pool, uint256 coinsCount) {
-        pool = _pool;
+    constructor(address _pool, uint256 coinsCount) {
+        pool = ICurveStableSwap(_pool);
 
         for (uint256 i = 0; i < coinsCount; ) {
             coins[pool.coins(i)] = int256(i).toInt128();

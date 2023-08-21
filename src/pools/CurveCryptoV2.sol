@@ -31,8 +31,8 @@ contract CurveCryptoV2 {
 
     mapping(address token => uint256 index) public coins;
 
-    constructor(ICurveCryptoV2 _pool, uint256 coinsCount) {
-        pool = _pool;
+    constructor(address _pool, uint256 coinsCount) {
+        pool = ICurveCryptoV2(_pool);
 
         for (uint256 i = 0; i < coinsCount; ) {
             coins[pool.coins(i)] = i;

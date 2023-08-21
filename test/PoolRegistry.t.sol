@@ -87,10 +87,6 @@ contract PoolRegistryTest is Test {
 
         uint256 poolIndex = registry.nextPoolIndex();
 
-        for (uint256 i = 0; i < poolTokens.length; ++i) {
-            assertFalse(registry.getTokenPool(poolTokens[i], poolIndex));
-        }
-
         vm.prank(msgSender);
         vm.expectEmit(true, true, true, true, address(registry));
 
@@ -98,11 +94,26 @@ contract PoolRegistryTest is Test {
 
         registry.addPool(pool);
 
+        unchecked {
+            for (uint256 i = 0; i < poolTokens.length; ++i) {
+                address[] memory poolsByToken = registry.poolsByToken(
+                    poolTokens[i]
+                );
+                bool poolFound = false;
+
+                for (uint256 j = 0; j < poolsByToken.length; ++j) {
+                    if (poolsByToken[j] == pool) {
+                        // Mark pool as found.
+                        poolFound = true;
+                        break;
+                    }
+                }
+
+                assertTrue(poolFound);
+            }
+        }
+
         assertEq(poolTokens.length, registry.pools(pool));
         assertEq(pool, registry.poolIndexes(poolIndex));
-
-        for (uint256 i = 0; i < poolTokens.length; ++i) {
-            assertTrue(registry.getTokenPool(poolTokens[i], poolIndex));
-        }
     }
 }

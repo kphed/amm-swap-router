@@ -3,10 +3,12 @@ pragma solidity 0.8.21;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
+import {Solarray} from "solarray/Solarray.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistry is Ownable {
     using LibBitmap for LibBitmap.Bitmap;
+    using Solarray for address[];
 
     // Maintaining a numeric index allows our pools to be enumerated.
     uint256 public nextPoolIndex = 0;
@@ -18,7 +20,7 @@ contract PoolRegistry is Ownable {
     mapping(uint256 index => address pool) public poolIndexes;
 
     // Token addresses mapped to pool indexes (pool index = bit).
-    mapping(address token => LibBitmap.Bitmap) private _tokenPools;
+    mapping(address token => LibBitmap.Bitmap) private _poolsByToken;
 
     event AddPool(
         address indexed pool,
@@ -57,7 +59,7 @@ contract PoolRegistry is Ownable {
 
         while (true) {
             // Set the bit equal to the pool index for each token in the pool.
-            _tokenPools[tokens[tokenIndex]].set(poolIndex);
+            _poolsByToken[tokens[tokenIndex]].set(poolIndex);
 
             // Break loop if all pool tokens have had their bits set.
             if (tokenIndex == 0) break;
@@ -68,10 +70,19 @@ contract PoolRegistry is Ownable {
         emit AddPool(pool, poolIndex, tokens.length, tokens);
     }
 
-    function getTokenPool(
-        address token,
-        uint256 poolIndex
-    ) external view returns (bool) {
-        return _tokenPools[token].get(poolIndex);
+    function poolsByToken(
+        address token
+    ) external view returns (address[] memory _pools) {
+        uint256 maxIterations = nextPoolIndex;
+
+        for (uint256 i = 0; i < maxIterations; ) {
+            // Check whether the bit is set and append to the list of pools for the token.
+            if (_poolsByToken[token].get(i))
+                _pools = _pools.append(poolIndexes[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }

@@ -2,6 +2,7 @@
 pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 import {PoolRegistry} from "src/PoolRegistry.sol";
 import {ICurveCryptoV2, CurveCryptoV2} from "src/pools/CurveCryptoV2.sol";
 import {ICurveStableSwap, CurveStableSwap} from "src/pools/CurveStableSwap.sol";
@@ -36,6 +37,8 @@ contract PoolRegistryTest is Test {
 
     PoolRegistry public immutable registry = new PoolRegistry(address(this));
 
+    event SetPool(address indexed pool, address[] tokens);
+
     constructor() {
         address[] memory crvusdUSDTCoins = new address[](2);
         crvusdUSDTCoins[0] = CRVUSD;
@@ -61,5 +64,49 @@ contract PoolRegistryTest is Test {
         registry.setPool(SP_CRVUSD_ETH_CRV, crvusdETHCRVCoins);
         registry.setPool(SP_USDT_WBTC_ETH, usdtWBTCETHCoins);
         registry.setPool(SP_USDC_WBTC_ETH, usdcWBTCETHCoins);
+    }
+
+    // /*//////////////////////////////////////////////////////////////
+    //                          setPool
+    // //////////////////////////////////////////////////////////////*/
+
+    function testCannotSetPool() external {
+        address unauthorizedMsgSender = address(0);
+        address pool = address(1);
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(2);
+        tokens[1] = address(3);
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.setPool(pool, tokens);
+    }
+
+    function testSetPool() external {
+        address msgSender = address(this);
+        address pool = address(1);
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(2);
+        tokens[1] = address(3);
+
+        assertEq(msgSender, registry.owner());
+
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            assertEq(address(0), registry.pools(pool, i));
+        }
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, false, false, true, address(registry));
+
+        emit SetPool(pool, tokens);
+
+        registry.setPool(pool, tokens);
+
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            assertEq(tokens[i], registry.pools(pool, i));
+        }
     }
 }

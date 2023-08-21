@@ -20,7 +20,8 @@ contract PoolRegistry is Ownable {
     mapping(uint256 index => address pool) public poolIndexes;
 
     // Token addresses mapped to pool indexes (pool index = bit).
-    mapping(address token => LibBitmap.Bitmap) private _poolsByToken;
+    mapping(address token => LibBitmap.Bitmap poolIndexes)
+        private _poolsByToken;
 
     event AddPool(
         address indexed pool,
@@ -53,18 +54,23 @@ contract PoolRegistry is Ownable {
         // Map index to pool address.
         poolIndexes[poolIndex] = pool;
 
-        ++nextPoolIndex;
+        unchecked {
+            // Extremely unlikely to ever overflow.
+            ++nextPoolIndex;
 
-        uint256 tokenIndex = tokens.length - 1;
+            // If this underflows, will result in index OOB error when reading the `tokens` array below.
+            uint256 tokenIndex = tokens.length - 1;
 
-        while (true) {
-            // Set the bit equal to the pool index for each token in the pool.
-            _poolsByToken[tokens[tokenIndex]].set(poolIndex);
+            while (true) {
+                // Set the bit equal to the pool index for each token in the pool.
+                _poolsByToken[tokens[tokenIndex]].set(poolIndex);
 
-            // Break loop if all pool tokens have had their bits set.
-            if (tokenIndex == 0) break;
+                // Break loop if all pool tokens have had their bits set.
+                if (tokenIndex == 0) break;
 
-            --tokenIndex;
+                // Will not overflow due to the loop break check.
+                --tokenIndex;
+            }
         }
 
         emit AddPool(pool, poolIndex, tokens.length, tokens);

@@ -2,6 +2,8 @@
 pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
+import {ERC20} from "solady/tokens/ERC20.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {Solarray} from "solarray/Solarray.sol";
@@ -12,6 +14,7 @@ contract PoolRegistry is Ownable {
     using LibBitmap for LibBitmap.Bitmap;
     using Solarray for address[];
     using LinkedList for LinkedList.List;
+    using SafeTransferLib for address;
 
     struct ExchangePaths {
         uint256 nextIndex;
@@ -54,6 +57,7 @@ contract PoolRegistry is Ownable {
 
     error Duplicate();
     error EmptyArray();
+    error FailedCall(bytes);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -268,6 +272,61 @@ contract PoolRegistry is Ownable {
 
                 // Store the final quote for this path before it is reinitialized for the next path.
                 inputTokenAmounts[i] = transientQuote;
+            }
+        }
+    }
+
+    function swap(
+        address inputToken,
+        address outputToken,
+        uint256 inputTokenAmount,
+        uint256 minOutputTokenAmount
+    ) external {
+        inputToken.safeTransferFrom(
+            msg.sender,
+            address(this),
+            inputTokenAmount
+        );
+
+        ExchangePaths storage exchangePaths = _exchangePaths[
+            keccak256(abi.encodePacked(inputToken, outputToken))
+        ];
+
+        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        unchecked {
+            for (uint256 i = 0; i < exchangePaths.nextIndex; ++i) {
+                uint256 transientQuote = inputTokenAmount;
+                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
+
+                for (uint256 j = 0; j < pathKeys.length; ++j) {
+                    (
+                        address pool,
+                        uint48 inputTokenIndex,
+                        uint48 outputTokenIndex
+                    ) = _decodePath(pathKeys[j]);
+
+                    IStandardPool(pool).tokens()[inputTokenIndex].safeApprove(
+                        IStandardPool(pool).poolAddr(),
+                        transientQuote
+                    );
+
+                    (bool success, bytes memory data) = pool.delegatecall(
+                        abi.encodeWithSelector(
+                            IStandardPool.swap.selector,
+                            IStandardPool(pool).poolAddr(),
+                            inputTokenIndex,
+                            outputTokenIndex,
+                            transientQuote,
+                            (j == pathKeys.length - 1)
+                                ? minOutputTokenAmount
+                                : 1
+                        )
+                    );
+
+                    if (!success) revert FailedCall(data);
+
+                    transientQuote = uint256(bytes32(data));
+                }
             }
         }
     }

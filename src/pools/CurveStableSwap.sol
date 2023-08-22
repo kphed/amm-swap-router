@@ -53,6 +53,10 @@ contract CurveStableSwap {
         }
     }
 
+    function poolAddr() external view returns (address) {
+        return address(pool);
+    }
+
     function tokens() external view returns (address[] memory) {
         return _tokens;
     }
@@ -84,13 +88,14 @@ contract CurveStableSwap {
     }
 
     function swap(
+        address _pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex,
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount
     ) external returns (uint256) {
         return
-            ICurveStableSwap(pool).exchange(
+            ICurveStableSwap(_pool).exchange(
                 int256(inputTokenIndex).toInt128(),
                 int256(outputTokenIndex).toInt128(),
                 inputTokenAmount,

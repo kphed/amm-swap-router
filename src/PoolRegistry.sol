@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
+import "forge-std/Test.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {Solarray} from "solarray/Solarray.sol";
@@ -188,5 +189,43 @@ contract PoolRegistry is Ownable {
         bytes32 tokenPair
     ) external view returns (uint256) {
         return _exchangePaths[tokenPair].nextIndex;
+    }
+
+    function quoteTokenOutput(
+        bytes32 tokenPair,
+        uint256 inputTokenAmount
+    ) external view returns (uint256[] memory outputTokenAmounts) {
+        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
+        outputTokenAmounts = new uint256[](exchangePaths.nextIndex);
+        uint256 exchangePathsLength = exchangePaths.nextIndex;
+
+        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        unchecked {
+            for (uint256 i = 0; i < exchangePathsLength; ++i) {
+                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
+                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
+                uint256 transientQuote = inputTokenAmount;
+
+                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
+                uint256 pathKeysLength = pathKeys.length;
+
+                for (uint256 j = 0; j < pathKeysLength; ++j) {
+                    (
+                        address pool,
+                        uint48 inputTokenIndex,
+                        uint48 outputTokenIndex
+                    ) = _decodePath(pathKeys[j]);
+
+                    transientQuote = IStandardPool(pool).quoteTokenOutput(
+                        inputTokenIndex,
+                        outputTokenIndex,
+                        transientQuote
+                    );
+                }
+
+                // Store the final quote for this path before it is reinitialized for the next path.
+                outputTokenAmounts[i] = transientQuote;
+            }
+        }
     }
 }

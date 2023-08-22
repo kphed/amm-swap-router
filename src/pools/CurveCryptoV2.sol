@@ -72,15 +72,15 @@ contract CurveCryptoV2 {
     }
 
     function swap(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount
     ) external returns (uint256) {
         return
             pool.exchange(
-                tokenIndexes[inputToken],
-                tokenIndexes[outputToken],
+                inputTokenIndex,
+                outputTokenIndex,
                 inputTokenAmount,
                 minOutputTokenAmount,
                 false,

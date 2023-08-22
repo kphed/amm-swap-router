@@ -84,15 +84,15 @@ contract CurveStableSwap {
     }
 
     function swap(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount
     ) external returns (uint256) {
         return
             ICurveStableSwap(pool).exchange(
-                int256(tokenIndexes[inputToken]).toInt128(),
-                int256(tokenIndexes[outputToken]).toInt128(),
+                int256(inputTokenIndex).toInt128(),
+                int256(outputTokenIndex).toInt128(),
                 inputTokenAmount,
                 minOutputTokenAmount,
                 address(this)

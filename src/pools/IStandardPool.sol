@@ -19,8 +19,8 @@ interface IStandardPool {
     ) external view returns (uint256);
 
     function swap(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount
     ) external returns (uint256);

@@ -228,4 +228,47 @@ contract PoolRegistry is Ownable {
             }
         }
     }
+
+    function quoteTokenInput(
+        bytes32 tokenPair,
+        uint256 outputTokenAmount
+    ) external view returns (uint256[] memory inputTokenAmounts) {
+        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
+        inputTokenAmounts = new uint256[](exchangePaths.nextIndex);
+        uint256 exchangePathsLength = exchangePaths.nextIndex;
+
+        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        unchecked {
+            for (uint256 i = 0; i < exchangePathsLength; ++i) {
+                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
+                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
+                uint256 transientQuote = outputTokenAmount;
+
+                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
+                uint256 pathKeysLength = pathKeys.length;
+
+                // Since we are fetching the input amount based on the output, we need to start from the last path element.
+                while (true) {
+                    --pathKeysLength;
+
+                    (
+                        address pool,
+                        uint48 inputTokenIndex,
+                        uint48 outputTokenIndex
+                    ) = _decodePath(pathKeys[pathKeysLength]);
+
+                    transientQuote = IStandardPool(pool).quoteTokenInput(
+                        inputTokenIndex,
+                        outputTokenIndex,
+                        transientQuote
+                    );
+
+                    if (pathKeysLength == 0) break;
+                }
+
+                // Store the final quote for this path before it is reinitialized for the next path.
+                inputTokenAmounts[i] = transientQuote;
+            }
+        }
+    }
 }

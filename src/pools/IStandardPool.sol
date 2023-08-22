@@ -7,14 +7,14 @@ interface IStandardPool {
     function tokenIndexes(address token) external view returns (uint256);
 
     function quoteTokenOutput(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 inputTokenAmount
     ) external view returns (uint256);
 
     function quoteTokenInput(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 outputTokenAmount
     ) external view returns (uint256);
 

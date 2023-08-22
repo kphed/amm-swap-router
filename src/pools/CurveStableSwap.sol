@@ -58,27 +58,27 @@ contract CurveStableSwap {
     }
 
     function quoteTokenOutput(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 inputTokenAmount
     ) external view returns (uint256) {
         return
             ICurveStableSwap(pool).get_dy(
-                int256(tokenIndexes[inputToken]).toInt128(),
-                int256(tokenIndexes[outputToken]).toInt128(),
+                int256(inputTokenIndex).toInt128(),
+                int256(outputTokenIndex).toInt128(),
                 inputTokenAmount
             );
     }
 
     function quoteTokenInput(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 outputTokenAmount
     ) external view returns (uint256) {
         return
             ICurveStableSwap(pool).get_dx(
-                int256(tokenIndexes[inputToken]).toInt128(),
-                int256(tokenIndexes[outputToken]).toInt128(),
+                int256(inputTokenIndex).toInt128(),
+                int256(outputTokenIndex).toInt128(),
                 outputTokenAmount
             );
     }

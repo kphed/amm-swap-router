@@ -55,29 +55,20 @@ contract CurveCryptoV2 {
     }
 
     function quoteTokenOutput(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 inputTokenAmount
     ) external view returns (uint256) {
-        return
-            pool.get_dy(
-                tokenIndexes[inputToken],
-                tokenIndexes[outputToken],
-                inputTokenAmount
-            );
+        return pool.get_dy(inputTokenIndex, outputTokenIndex, inputTokenAmount);
     }
 
     function quoteTokenInput(
-        address inputToken,
-        address outputToken,
+        uint256 inputTokenIndex,
+        uint256 outputTokenIndex,
         uint256 outputTokenAmount
     ) external view returns (uint256) {
         return
-            pool.get_dx(
-                tokenIndexes[inputToken],
-                tokenIndexes[outputToken],
-                outputTokenAmount
-            );
+            pool.get_dx(inputTokenIndex, outputTokenIndex, outputTokenAmount);
     }
 
     function swap(

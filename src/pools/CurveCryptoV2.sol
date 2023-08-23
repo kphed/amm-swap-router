@@ -1,95 +1,65 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
+import {Solarray} from "solarray/Solarray.sol";
+
 interface ICurveCryptoV2 {
-    function get_dy(
-        uint256 i,
-        uint256 j,
-        uint256 dx
-    ) external view returns (uint256 dy);
+    function get_dy(uint256 i, uint256 j, uint256 dx) external view returns (uint256 dy);
 
-    function get_dx(
-        uint256 i,
-        uint256 j,
-        uint256 dy
-    ) external view returns (uint256 dx);
+    function get_dx(uint256 i, uint256 j, uint256 dy) external view returns (uint256 dx);
 
-    function exchange(
-        uint256 i,
-        uint256 j,
-        uint256 dx,
-        uint256 minDy,
-        bool useEth,
-        address receiver
-    ) external returns (uint256);
+    function exchange(uint256 i, uint256 j, uint256 dx, uint256 minDy, bool useEth, address receiver)
+        external
+        returns (uint256);
 
     function coins(uint256 index) external view returns (address);
 }
 
 contract CurveCryptoV2 {
-    ICurveCryptoV2 public immutable pool;
+    using Solarray for address[];
 
-    address[] private _tokens;
+    function tokens(address pool) external view returns (address[] memory _tokens) {
+        uint256 index = 0;
+        ICurveCryptoV2 _pool = ICurveCryptoV2(pool);
 
-    // Token addresses to their indexes for easy lookups.
-    mapping(address token => uint256 index) public tokenIndexes;
+        while (true) {
+            try _pool.coins(index) returns (address token) {
+                _tokens = _tokens.append(token);
 
-    constructor(address _pool, uint256 coinsCount) {
-        pool = ICurveCryptoV2(_pool);
-        address token;
-
-        for (uint256 i = 0; i < coinsCount; ) {
-            token = pool.coins(i);
-            tokenIndexes[token] = i;
-
-            _tokens.push(token);
-
-            unchecked {
-                ++i;
+                unchecked {
+                    ++index;
+                }
+            } catch {
+                return _tokens;
             }
         }
     }
 
-    function poolAddr() external view returns (address) {
-        return address(pool);
+    function quoteTokenOutput(address pool, uint256 inputTokenIndex, uint256 outputTokenIndex, uint256 inputTokenAmount)
+        external
+        view
+        returns (uint256)
+    {
+        return ICurveCryptoV2(pool).get_dy(inputTokenIndex, outputTokenIndex, inputTokenAmount);
     }
 
-    function tokens() external view returns (address[] memory) {
-        return _tokens;
-    }
-
-    function quoteTokenOutput(
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 inputTokenAmount
-    ) external view returns (uint256) {
-        return pool.get_dy(inputTokenIndex, outputTokenIndex, inputTokenAmount);
-    }
-
-    function quoteTokenInput(
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 outputTokenAmount
-    ) external view returns (uint256) {
-        return
-            pool.get_dx(inputTokenIndex, outputTokenIndex, outputTokenAmount);
+    function quoteTokenInput(address pool, uint256 inputTokenIndex, uint256 outputTokenIndex, uint256 outputTokenAmount)
+        external
+        view
+        returns (uint256)
+    {
+        return ICurveCryptoV2(pool).get_dx(inputTokenIndex, outputTokenIndex, outputTokenAmount);
     }
 
     function swap(
-        address _pool,
+        address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex,
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount
     ) external returns (uint256) {
-        return
-            ICurveCryptoV2(_pool).exchange(
-                inputTokenIndex,
-                outputTokenIndex,
-                inputTokenAmount,
-                minOutputTokenAmount,
-                false,
-                address(this)
-            );
+        return ICurveCryptoV2(pool).exchange(
+            inputTokenIndex, outputTokenIndex, inputTokenAmount, minOutputTokenAmount, false, address(this)
+        );
     }
 }

@@ -9,7 +9,6 @@ import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {Solarray} from "solarray/Solarray.sol";
 import {LinkedList} from "src/lib/LinkedList.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
-import {IStandardPoolV2} from "src/pools/IStandardPoolV2.sol";
 
 contract PoolRegistry is Ownable {
     using LibBitmap for LibBitmap.Bitmap;
@@ -30,29 +29,16 @@ contract PoolRegistry is Ownable {
     // Maintaining a numeric index allows our pools to be enumerated.
     uint256 public nextPoolIndex = 0;
 
-    // Pools mapped to their contract interfaces.
-    mapping(address pool => address poolInterface) public poolInterfaces;
-
-    // Pools mapped to their contract interfaces.
+    mapping(address pool => IStandardPool poolInterface) public poolInterfaces;
     mapping(address pool => address[] tokens) public poolTokens;
-
-    // Pools mapped to their token count for easy lookup and dupe-checking.
-    mapping(address pool => uint256 tokenCount) public pools;
-
-    // Pool indexes mapped to pool addresses.
-    mapping(uint256 index => address pool) public poolsByIndex;
-
-    // Token pairs mapped to their exchange paths.
+    mapping(uint256 index => address pool) public poolIndexes;
     mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
+    mapping(address token => LibBitmap.Bitmap poolIndexes) private _tokenPools;
 
-    // Token addresses mapped to pool indexes (pool index = bit).
-    mapping(address token => LibBitmap.Bitmap poolIndexMap) private _poolsByToken;
-
-    event AddPool(address indexed pool, uint256 indexed poolIndex, uint256 indexed tokenCount, address[] tokens);
+    event AddPool(address indexed pool, IStandardPool indexed poolInterface, uint256 indexed poolIndex);
     event AddExchangePath(
         bytes32 indexed tokenPair, uint256 indexed newPathIndex, uint256 indexed newPathLength, bytes32[] newPath
     );
-    event AddPoolV2(address indexed pool, address indexed poolInterface, uint256 indexed poolIndex);
 
     error Duplicate();
     error EmptyArray();
@@ -78,22 +64,11 @@ contract PoolRegistry is Ownable {
 
     /**
      * @notice Add a liquidity pool.
-     * @param  pool  address  Liquidity pool address.
+     * @param  pool           address        Liquidity pool address.
+     * @param  poolInterface  IStandardPool  Liquidity pool interface.
      */
-    function addPool(address pool, address poolInterface) external onlyOwner {
-        if (poolInterfaces[pool] != address(0)) revert Duplicate();
-
-        address[] memory tokens = IStandardPoolV2(poolInterface).tokens(pool);
-        uint256 tokensLength = tokens.length;
-        address[] storage _poolTokens = poolTokens[pool];
-
-        for (uint256 i = 0; i < tokensLength;) {
-            _poolTokens.push(tokens[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
+    function addPool(address pool, IStandardPool poolInterface) external onlyOwner {
+        if (address(poolInterfaces[pool]) != address(0)) revert Duplicate();
 
         // Store the new pool, along with the number of tokens in it.
         poolInterfaces[pool] = poolInterface;
@@ -102,68 +77,29 @@ contract PoolRegistry is Ownable {
         uint256 poolIndex = nextPoolIndex;
 
         // Map index to pool address.
-        poolsByIndex[poolIndex] = pool;
+        poolIndexes[poolIndex] = pool;
+
+        address[] memory tokens = IStandardPool(poolInterface).tokens(pool);
+        uint256 tokensLength = tokens.length;
+        address[] storage _poolTokens = poolTokens[pool];
 
         unchecked {
             // Extremely unlikely to ever overflow.
             ++nextPoolIndex;
 
-            // If this underflows, will result in an index OOB error when reading the `tokens` array below.
-            uint256 tokenIndex = tokens.length - 1;
+            address token;
 
-            while (true) {
+            for (uint256 i = 0; i < tokensLength; ++i) {
+                token = tokens[i];
+
+                _poolTokens.push(token);
+
                 // Set the bit equal to the pool index for each token in the pool.
-                _poolsByToken[tokens[tokenIndex]].set(poolIndex);
-
-                // Break loop if all pool tokens have had their bits set.
-                if (tokenIndex == 0) break;
-
-                // Will not overflow due to the loop break check.
-                --tokenIndex;
+                _tokenPools[token].set(poolIndex);
             }
         }
 
-        emit AddPoolV2(pool, poolInterface, poolIndex);
-    }
-
-    /**
-     * @notice Add a liquidity pool.
-     * @param  pool  address  Liquidity pool address.
-     */
-    function addPool(address pool) external onlyOwner {
-        if (pools[pool] != 0) revert Duplicate();
-
-        address[] memory tokens = IStandardPool(pool).tokens();
-
-        // Store the new pool, along with the number of tokens in it.
-        pools[pool] = tokens.length;
-
-        // Cache the pool index to save gas and allow `nextPoolIndex` to be incremented.
-        uint256 poolIndex = nextPoolIndex;
-
-        // Map index to pool address.
-        poolsByIndex[poolIndex] = pool;
-
-        unchecked {
-            // Extremely unlikely to ever overflow.
-            ++nextPoolIndex;
-
-            // If this underflows, will result in index OOB error when reading the `tokens` array below.
-            uint256 tokenIndex = tokens.length - 1;
-
-            while (true) {
-                // Set the bit equal to the pool index for each token in the pool.
-                _poolsByToken[tokens[tokenIndex]].set(poolIndex);
-
-                // Break loop if all pool tokens have had their bits set.
-                if (tokenIndex == 0) break;
-
-                // Will not overflow due to the loop break check.
-                --tokenIndex;
-            }
-        }
-
-        emit AddPool(pool, poolIndex, tokens.length, tokens);
+        emit AddPool(pool, poolInterface, poolIndex);
     }
 
     function addExchangePath(bytes32 tokenPair, bytes32[] calldata newPath) external onlyOwner {
@@ -189,8 +125,8 @@ contract PoolRegistry is Ownable {
 
         for (uint256 i = 0; i < maxIterations;) {
             // Check whether the bit is set and append to the list of pools for the token.
-            if (_poolsByToken[token].get(i)) {
-                _pools = _pools.append(poolsByIndex[i]);
+            if (_tokenPools[token].get(i)) {
+                _pools = _pools.append(poolIndexes[i]);
             }
 
             unchecked {
@@ -246,7 +182,7 @@ contract PoolRegistry is Ownable {
                     (address pool, uint48 inputTokenIndex, uint48 outputTokenIndex) = _decodePath(pathKeys[j]);
 
                     transientQuote =
-                        IStandardPool(pool).quoteTokenOutput(inputTokenIndex, outputTokenIndex, transientQuote);
+                        poolInterfaces[pool].quoteTokenOutput(pool, inputTokenIndex, outputTokenIndex, transientQuote);
                 }
 
                 // Store the final quote for this path before it is reinitialized for the next path.
@@ -282,52 +218,13 @@ contract PoolRegistry is Ownable {
                         _decodePath(pathKeys[pathKeysLength]);
 
                     transientQuote =
-                        IStandardPool(pool).quoteTokenInput(inputTokenIndex, outputTokenIndex, transientQuote);
+                        poolInterfaces[pool].quoteTokenInput(pool, inputTokenIndex, outputTokenIndex, transientQuote);
 
                     if (pathKeysLength == 0) break;
                 }
 
                 // Store the final quote for this path before it is reinitialized for the next path.
                 inputTokenAmounts[i] = transientQuote;
-            }
-        }
-    }
-
-    function swap(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount)
-        external
-    {
-        inputToken.safeTransferFrom(msg.sender, address(this), inputTokenAmount);
-
-        ExchangePaths storage exchangePaths = _exchangePaths[keccak256(abi.encodePacked(inputToken, outputToken))];
-
-        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
-        unchecked {
-            for (uint256 i = 0; i < exchangePaths.nextIndex; ++i) {
-                uint256 transientQuote = inputTokenAmount;
-                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
-
-                for (uint256 j = 0; j < pathKeys.length; ++j) {
-                    (address pool, uint48 inputTokenIndex, uint48 outputTokenIndex) = _decodePath(pathKeys[j]);
-
-                    IStandardPool(pool).tokens()[inputTokenIndex].safeApprove(
-                        IStandardPool(pool).poolAddr(), transientQuote
-                    );
-
-                    (bool success, bytes memory data) = pool.delegatecall(
-                        abi.encodeWithSelector(
-                            IStandardPool.swap.selector,
-                            IStandardPool(pool).poolAddr(),
-                            inputTokenIndex,
-                            outputTokenIndex,
-                            transientQuote,
-                            (j == pathKeys.length - 1) ? minOutputTokenAmount : 1
-                        )
-                    );
-
-                    if (!success) revert FailedCall(data);
-
-                    transientQuote = uint256(bytes32(data));
-                }
             }
         }
     }

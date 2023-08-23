@@ -10,3 +10,6 @@
 [submodule "lib/solarray"]
 	path = lib/solarray
 	url = https://github.com/emo-eth/solarray
+[submodule "lib/uniswap-v3-static-quoter"]
+	path = lib/uniswap-v3-static-quoter
+	url = https://github.com/eden-network/uniswap-v3-static-quoter

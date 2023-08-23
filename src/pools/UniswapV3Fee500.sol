@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+
 interface IUniswapV3 {
     struct QuoteExactInputSingleParams {
         address tokenIn;
@@ -27,12 +29,17 @@ interface IUniswapV3 {
     function quoteExactOutputSingle(QuoteExactOutputSingleParams memory params)
         external
         returns (uint256, uint160, uint32, uint256);
+
+    function quote(address poolAddress, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96)
+        external
+        view
+        returns (int256 amount0, int256 amount1);
 }
 
 contract UniswapV3Fee500 {
     IUniswapV3 private constant QUOTER = IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
-    IUniswapV3 private constant QUOTER_V2 = IUniswapV3(0x61fFE014bA17989E743c5F6cB21bF9697530B21e);
-
+    uint160 private constant MIN_SQRT_RATIO = 4295128740;
+    uint160 private constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970341;
     uint24 private constant FEE = 500;
 
     function tokens(address pool) external view returns (address[] memory _tokens) {
@@ -50,23 +57,30 @@ contract UniswapV3Fee500 {
     {
         address token0 = IUniswapV3(pool).token0();
         address token1 = IUniswapV3(pool).token1();
+        address inputToken = inputTokenIndex == 0 ? token0 : token1;
+        address outputToken = outputTokenIndex == 1 ? token1 : token0;
+        bool zeroForOne = inputToken < outputToken;
+        (int256 amount0, int256 amount1) =
+            QUOTER.quote(pool, zeroForOne, int256(inputTokenAmount), zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO);
 
-        return QUOTER.quoteExactInputSingle(
-            IUniswapV3.QuoteExactInputSingleParams({
-                tokenIn: inputTokenIndex == 0 ? token0 : token1,
-                tokenOut: outputTokenIndex == 1 ? token1 : token0,
-                amountIn: inputTokenAmount,
-                fee: FEE,
-                sqrtPriceLimitX96: 0
-            })
-        );
+        return uint256(zeroForOne ? -amount1 : -amount0);
     }
 
     function quoteTokenInput(address pool, uint256 inputTokenIndex, uint256 outputTokenIndex, uint256 outputTokenAmount)
         external
         view
         returns (uint256 inputTokenAmount)
-    {}
+    {
+        address token0 = IUniswapV3(pool).token0();
+        address token1 = IUniswapV3(pool).token1();
+        address inputToken = inputTokenIndex == 0 ? token0 : token1;
+        address outputToken = outputTokenIndex == 1 ? token1 : token0;
+        bool zeroForOne = inputToken < outputToken;
+        (int256 amount0, int256 amount1) =
+            QUOTER.quote(pool, zeroForOne, -int256(outputTokenAmount), zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO);
+
+        return uint256(zeroForOne ? amount0 : amount1);
+    }
 
     function swap(
         address pool,

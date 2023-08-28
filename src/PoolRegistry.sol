@@ -35,9 +35,16 @@ contract PoolRegistry is Ownable {
     mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
     mapping(address token => LibBitmap.Bitmap poolIndexes) private _tokenPools;
 
-    event AddPool(address indexed pool, IStandardPool indexed poolInterface, uint256 indexed poolIndex);
+    event AddPool(
+        address indexed pool,
+        IStandardPool indexed poolInterface,
+        uint256 indexed poolIndex
+    );
     event AddExchangePath(
-        bytes32 indexed tokenPair, uint256 indexed newPathIndex, uint256 indexed newPathLength, bytes32[] newPath
+        bytes32 indexed tokenPair,
+        uint256 indexed newPathIndex,
+        uint256 indexed newPathLength,
+        bytes32[] newPath
     );
 
     error Duplicate();
@@ -48,7 +55,9 @@ contract PoolRegistry is Ownable {
         _initializeOwner(initialOwner);
     }
 
-    function _decodePath(bytes32 path)
+    function _decodePath(
+        bytes32 path
+    )
         private
         pure
         returns (address pool, uint48 inputTokenIndex, uint48 outputTokenIndex)
@@ -62,12 +71,153 @@ contract PoolRegistry is Ownable {
         }
     }
 
+    function getPoolTokens(
+        address pool
+    ) external view returns (address[] memory) {
+        return poolTokens[pool];
+    }
+
+    function getTokenPools(
+        address token
+    ) external view returns (address[] memory tokenPools) {
+        uint256 maxIterations = nextPoolIndex;
+
+        for (uint256 i = 0; i < maxIterations; ) {
+            if (_tokenPools[token].get(i)) {
+                tokenPools = tokenPools.append(poolIndexes[i]);
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function getExchangePath(
+        bytes32 tokenPair,
+        uint256 index
+    )
+        external
+        view
+        returns (
+            address[] memory paths,
+            uint48[] memory inputTokenIndexes,
+            uint48[] memory outputTokenIndexes
+        )
+    {
+        bytes32[] memory path = _exchangePaths[tokenPair]
+            .paths[index]
+            .getKeys();
+        uint256 pathLength = path.length;
+        paths = new address[](pathLength);
+        inputTokenIndexes = new uint48[](pathLength);
+        outputTokenIndexes = new uint48[](pathLength);
+
+        for (uint256 i = 0; i < pathLength; ) {
+            (
+                paths[i],
+                inputTokenIndexes[i],
+                outputTokenIndexes[i]
+            ) = _decodePath(path[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function quoteTokenOutput(
+        bytes32 tokenPair,
+        uint256 inputTokenAmount
+    ) external view returns (uint256[] memory outputTokenAmounts) {
+        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
+        outputTokenAmounts = new uint256[](exchangePaths.nextIndex);
+        uint256 exchangePathsLength = exchangePaths.nextIndex;
+
+        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        unchecked {
+            for (uint256 i = 0; i < exchangePathsLength; ++i) {
+                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
+                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
+                uint256 transientQuote = inputTokenAmount;
+
+                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
+                uint256 pathKeysLength = pathKeys.length;
+
+                for (uint256 j = 0; j < pathKeysLength; ++j) {
+                    (
+                        address pool,
+                        uint48 inputTokenIndex,
+                        uint48 outputTokenIndex
+                    ) = _decodePath(pathKeys[j]);
+
+                    transientQuote = poolInterfaces[pool].quoteTokenOutput(
+                        pool,
+                        inputTokenIndex,
+                        outputTokenIndex,
+                        transientQuote
+                    );
+                }
+
+                // Store the final quote for this path before it is reinitialized for the next path.
+                outputTokenAmounts[i] = transientQuote;
+            }
+        }
+    }
+
+    function quoteTokenInput(
+        bytes32 tokenPair,
+        uint256 outputTokenAmount
+    ) external view returns (uint256[] memory inputTokenAmounts) {
+        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
+        inputTokenAmounts = new uint256[](exchangePaths.nextIndex);
+        uint256 exchangePathsLength = exchangePaths.nextIndex;
+
+        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        unchecked {
+            for (uint256 i = 0; i < exchangePathsLength; ++i) {
+                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
+                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
+                uint256 transientQuote = outputTokenAmount;
+
+                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
+                uint256 pathKeysLength = pathKeys.length;
+
+                // Since we are fetching the input amount based on the output, we need to start from the last path element.
+                while (true) {
+                    --pathKeysLength;
+
+                    (
+                        address pool,
+                        uint48 inputTokenIndex,
+                        uint48 outputTokenIndex
+                    ) = _decodePath(pathKeys[pathKeysLength]);
+
+                    transientQuote = poolInterfaces[pool].quoteTokenInput(
+                        pool,
+                        inputTokenIndex,
+                        outputTokenIndex,
+                        transientQuote
+                    );
+
+                    if (pathKeysLength == 0) break;
+                }
+
+                // Store the final quote for this path before it is reinitialized for the next path.
+                inputTokenAmounts[i] = transientQuote;
+            }
+        }
+    }
+
     /**
      * @notice Add a liquidity pool.
      * @param  pool           address        Liquidity pool address.
      * @param  poolInterface  IStandardPool  Liquidity pool interface.
      */
-    function addPool(address pool, IStandardPool poolInterface) external onlyOwner {
+    function addPool(
+        address pool,
+        IStandardPool poolInterface
+    ) external onlyOwner {
         if (address(poolInterfaces[pool]) != address(0)) revert Duplicate();
 
         // Store the new pool, along with the number of tokens in it.
@@ -102,14 +252,17 @@ contract PoolRegistry is Ownable {
         emit AddPool(pool, poolInterface, poolIndex);
     }
 
-    function addExchangePath(bytes32 tokenPair, bytes32[] calldata newPath) external onlyOwner {
+    function addExchangePath(
+        bytes32 tokenPair,
+        bytes32[] calldata newPath
+    ) external onlyOwner {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         uint256 newPathLength = newPath.length;
         uint256 newPathIndex = exchangePaths.nextIndex;
 
         ++exchangePaths.nextIndex;
 
-        for (uint256 i = 0; i < newPathLength;) {
+        for (uint256 i = 0; i < newPathLength; ) {
             exchangePaths.paths[newPathIndex].push(newPath[i]);
 
             unchecked {
@@ -118,114 +271,5 @@ contract PoolRegistry is Ownable {
         }
 
         emit AddExchangePath(tokenPair, newPathIndex, newPathLength, newPath);
-    }
-
-    function poolsByToken(address token) external view returns (address[] memory _pools) {
-        uint256 maxIterations = nextPoolIndex;
-
-        for (uint256 i = 0; i < maxIterations;) {
-            // Check whether the bit is set and append to the list of pools for the token.
-            if (_tokenPools[token].get(i)) {
-                _pools = _pools.append(poolIndexes[i]);
-            }
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function exchangePath(bytes32 tokenPair, uint256 index)
-        external
-        view
-        returns (address[] memory paths, uint48[] memory inputTokenIndexes, uint48[] memory outputTokenIndexes)
-    {
-        bytes32[] memory path = _exchangePaths[tokenPair].paths[index].getKeys();
-        uint256 pathLength = path.length;
-        paths = new address[](pathLength);
-        inputTokenIndexes = new uint48[](pathLength);
-        outputTokenIndexes = new uint48[](pathLength);
-
-        for (uint256 i = 0; i < pathLength;) {
-            (paths[i], inputTokenIndexes[i], outputTokenIndexes[i]) = _decodePath(path[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function nextExchangePathIndex(bytes32 tokenPair) external view returns (uint256) {
-        return _exchangePaths[tokenPair].nextIndex;
-    }
-
-    function quoteTokenOutput(bytes32 tokenPair, uint256 inputTokenAmount)
-        external
-        view
-        returns (uint256[] memory outputTokenAmounts)
-    {
-        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
-        outputTokenAmounts = new uint256[](exchangePaths.nextIndex);
-        uint256 exchangePathsLength = exchangePaths.nextIndex;
-
-        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
-        unchecked {
-            for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
-                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
-                uint256 transientQuote = inputTokenAmount;
-
-                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
-                uint256 pathKeysLength = pathKeys.length;
-
-                for (uint256 j = 0; j < pathKeysLength; ++j) {
-                    (address pool, uint48 inputTokenIndex, uint48 outputTokenIndex) = _decodePath(pathKeys[j]);
-
-                    transientQuote =
-                        poolInterfaces[pool].quoteTokenOutput(pool, inputTokenIndex, outputTokenIndex, transientQuote);
-                }
-
-                // Store the final quote for this path before it is reinitialized for the next path.
-                outputTokenAmounts[i] = transientQuote;
-            }
-        }
-    }
-
-    function quoteTokenInput(bytes32 tokenPair, uint256 outputTokenAmount)
-        external
-        view
-        returns (uint256[] memory inputTokenAmounts)
-    {
-        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
-        inputTokenAmounts = new uint256[](exchangePaths.nextIndex);
-        uint256 exchangePathsLength = exchangePaths.nextIndex;
-
-        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
-        unchecked {
-            for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
-                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
-                uint256 transientQuote = outputTokenAmount;
-
-                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
-                uint256 pathKeysLength = pathKeys.length;
-
-                // Since we are fetching the input amount based on the output, we need to start from the last path element.
-                while (true) {
-                    --pathKeysLength;
-
-                    (address pool, uint48 inputTokenIndex, uint48 outputTokenIndex) =
-                        _decodePath(pathKeys[pathKeysLength]);
-
-                    transientQuote =
-                        poolInterfaces[pool].quoteTokenInput(pool, inputTokenIndex, outputTokenIndex, transientQuote);
-
-                    if (pathKeysLength == 0) break;
-                }
-
-                // Store the final quote for this path before it is reinitialized for the next path.
-                inputTokenAmounts[i] = transientQuote;
-            }
-        }
     }
 }

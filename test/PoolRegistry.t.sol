@@ -53,10 +53,26 @@ contract PoolRegistryTest is Test {
         bytes32[] newPath
     );
 
+    function _encodePath(
+        address pool,
+        uint48 inputTokenIndex,
+        uint48 outputTokenIndex
+    ) private pure returns (bytes32) {
+        return
+            bytes32(abi.encodePacked(pool, inputTokenIndex, outputTokenIndex));
+    }
+
+    function _hashTokenPair(
+        address inputToken,
+        address outputToken
+    ) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(inputToken, outputToken));
+    }
+
     /**
      * @notice Conveniently add all available pools for more complex testing.
      */
-    function _addPools() private {
+    function _setUpPools() private {
         registry.addPool(CURVE_CRVUSD_USDT, curveStableSwap);
         registry.addPool(CURVE_CRVUSD_USDC, curveStableSwap);
         registry.addPool(CURVE_CRVUSD_ETH_CRV, curveCryptoV2);
@@ -64,6 +80,36 @@ contract PoolRegistryTest is Test {
         registry.addPool(CURVE_USDC_WBTC_ETH, curveCryptoV2);
         registry.addPool(UNISWAP_USDC_ETH, uniswapV3Fee500);
         registry.addPool(UNISWAP_USDT_ETH, uniswapV3Fee500);
+
+        bytes32 crvUSDETH = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory crvUSDETHPath1 = new bytes32[](1);
+        crvUSDETHPath1[0] = _encodePath(CURVE_CRVUSD_ETH_CRV, 0, 1);
+
+        registry.addExchangePath(crvUSDETH, crvUSDETHPath1);
+
+        bytes32[] memory crvUSDETHPath2 = new bytes32[](2);
+        crvUSDETHPath2[0] = _encodePath(CURVE_CRVUSD_USDT, 1, 0);
+        crvUSDETHPath2[1] = _encodePath(CURVE_USDT_WBTC_ETH, 0, 2);
+
+        registry.addExchangePath(crvUSDETH, crvUSDETHPath2);
+
+        bytes32[] memory crvUSDETHPath3 = new bytes32[](2);
+        crvUSDETHPath3[0] = _encodePath(CURVE_CRVUSD_USDC, 1, 0);
+        crvUSDETHPath3[1] = _encodePath(CURVE_USDC_WBTC_ETH, 0, 2);
+
+        registry.addExchangePath(crvUSDETH, crvUSDETHPath3);
+
+        bytes32[] memory crvUSDETHPath4 = new bytes32[](2);
+        crvUSDETHPath4[0] = _encodePath(CURVE_CRVUSD_USDT, 1, 0);
+        crvUSDETHPath4[1] = _encodePath(UNISWAP_USDT_ETH, 1, 0);
+
+        registry.addExchangePath(crvUSDETH, crvUSDETHPath4);
+
+        bytes32[] memory crvUSDETHPath5 = new bytes32[](2);
+        crvUSDETHPath5[0] = _encodePath(CURVE_CRVUSD_USDC, 1, 0);
+        crvUSDETHPath5[1] = _encodePath(UNISWAP_USDC_ETH, 0, 1);
+
+        registry.addExchangePath(crvUSDETH, crvUSDETHPath5);
     }
 
     /*//////////////////////////////////////////////////////////////

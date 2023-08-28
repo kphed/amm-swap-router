@@ -126,7 +126,7 @@ contract PoolRegistry is Ownable {
         }
     }
 
-    function quoteTokenOutput(
+    function getOutputAmount(
         bytes32 tokenPair,
         uint256 inputTokenAmount
     ) external view returns (uint256[] memory outputTokenAmounts) {
@@ -165,7 +165,7 @@ contract PoolRegistry is Ownable {
         }
     }
 
-    function quoteTokenInput(
+    function getInputAmount(
         bytes32 tokenPair,
         uint256 outputTokenAmount
     ) external view returns (uint256[] memory inputTokenAmounts) {

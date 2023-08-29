@@ -135,8 +135,7 @@ contract UniswapV3Fee500 {
         address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex,
-        uint256 inputTokenAmount,
-        uint256 minOutputTokenAmount
+        uint256 inputTokenAmount
     ) external returns (uint256) {
         // Enables us to validate the caller of `uniswapV3SwapCallback`.
         _callbackPool = pool;

@@ -122,7 +122,7 @@ contract UniswapV3Fee500 {
             outputTokenIndex
         );
         (int256 amount0, int256 amount1) = IUniswapV3(pool).swap(
-            address(this),
+            msg.sender,
             zeroForOne,
             int256(inputTokenAmount),
             zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO,
@@ -133,5 +133,24 @@ contract UniswapV3Fee500 {
         delete _callbackPool;
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);
+    }
+
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        if (msg.sender != _callbackPool) revert UnauthorizedCaller();
+
+        address inputToken = abi.decode(data, (address));
+
+        if (amount0Delta > 0) {
+            inputToken.safeTransfer(msg.sender, uint256(amount0Delta));
+        } else if (amount1Delta > 0) {
+            inputToken.safeTransfer(msg.sender, uint256(amount1Delta));
+        } else {
+            // if both are not gt 0, both must be 0.
+            assert(amount0Delta == 0 && amount1Delta == 0);
+        }
     }
 }

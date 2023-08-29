@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 import {Solarray} from "solarray/Solarray.sol";
 
@@ -29,6 +30,7 @@ interface ICurveStableSwap {
 }
 
 contract CurveStableSwap {
+    using SafeTransferLib for address;
     using SafeCastLib for int256;
     using Solarray for address[];
 
@@ -85,13 +87,17 @@ contract CurveStableSwap {
         uint256 outputTokenIndex,
         uint256 inputTokenAmount
     ) external returns (uint256) {
+        ICurveStableSwap _pool = ICurveStableSwap(pool);
+
+        _pool.coins(inputTokenIndex).safeApprove(pool, inputTokenAmount);
+
         return
-            ICurveStableSwap(pool).exchange(
+            _pool.exchange(
                 int256(inputTokenIndex).toInt128(),
                 int256(outputTokenIndex).toInt128(),
                 inputTokenAmount,
                 1,
-                address(this)
+                msg.sender
             );
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Solarray} from "solarray/Solarray.sol";
 
 interface ICurveCryptoV2 {
@@ -29,6 +30,7 @@ interface ICurveCryptoV2 {
 }
 
 contract CurveCryptoV2 {
+    using SafeTransferLib for address;
     using Solarray for address[];
 
     function tokens(
@@ -84,14 +86,18 @@ contract CurveCryptoV2 {
         uint256 outputTokenIndex,
         uint256 inputTokenAmount
     ) external returns (uint256) {
+        ICurveCryptoV2 _pool = ICurveCryptoV2(pool);
+
+        _pool.coins(inputTokenIndex).safeApprove(pool, inputTokenAmount);
+
         return
-            ICurveCryptoV2(pool).exchange(
+            _pool.exchange(
                 inputTokenIndex,
                 outputTokenIndex,
                 inputTokenAmount,
                 1,
                 false,
-                address(this)
+                msg.sender
             );
     }
 }

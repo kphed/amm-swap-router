@@ -2,6 +2,7 @@
 pragma solidity 0.8.21;
 
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 interface IUniswapV3 {
     struct QuoteExactInputSingleParams {
@@ -49,6 +50,8 @@ interface IUniswapV3 {
 }
 
 contract UniswapV3Fee500 {
+    using SafeTransferLib for address;
+
     IUniswapV3 private constant QUOTER =
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
     uint160 private constant MIN_SQRT_RATIO = 4295128740;
@@ -56,17 +59,24 @@ contract UniswapV3Fee500 {
         1461446703485210103287273052203988822378723970341;
     uint24 private constant FEE = 500;
 
-    function _computeZeroForOne(
+    address private _currentPool;
+
+    error UnauthorizedCaller();
+
+    function _computeTokenData(
         address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex
-    ) internal view returns (bool) {
+    )
+        internal
+        view
+        returns (address inputToken, address outputToken, bool zeroForOne)
+    {
         address token0 = IUniswapV3(pool).token0();
         address token1 = IUniswapV3(pool).token1();
-
-        return
-            (inputTokenIndex == 0 ? token0 : token1) <
-            (outputTokenIndex == 1 ? token1 : token0);
+        inputToken = (inputTokenIndex == 0 ? token0 : token1);
+        outputToken = (outputTokenIndex == 1 ? token1 : token0);
+        zeroForOne = inputToken < outputToken;
     }
 
     function tokens(
@@ -85,7 +95,7 @@ contract UniswapV3Fee500 {
         uint256 outputTokenIndex,
         uint256 inputTokenAmount
     ) external view returns (uint256) {
-        bool zeroForOne = _computeZeroForOne(
+        (, , bool zeroForOne) = _computeTokenData(
             pool,
             inputTokenIndex,
             outputTokenIndex
@@ -106,7 +116,7 @@ contract UniswapV3Fee500 {
         uint256 outputTokenIndex,
         uint256 outputTokenAmount
     ) external view returns (uint256 inputTokenAmount) {
-        bool zeroForOne = _computeZeroForOne(
+        (, , bool zeroForOne) = _computeTokenData(
             pool,
             inputTokenIndex,
             outputTokenIndex
@@ -125,7 +135,57 @@ contract UniswapV3Fee500 {
         address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex,
-        uint256 inputTokenAmount,
-        uint256 minOutputTokenAmount
-    ) external returns (uint256) {}
+        uint256 inputTokenAmount
+    ) external returns (uint256) {
+        // Enables us to validate the caller of `uniswapV3SwapCallback`.
+        _currentPool = pool;
+
+        (address inputToken, , bool zeroForOne) = _computeTokenData(
+            pool,
+            inputTokenIndex,
+            outputTokenIndex
+        );
+        (int256 amount0, int256 amount1) = IUniswapV3(pool).swap(
+            address(this),
+            zeroForOne,
+            int256(inputTokenAmount),
+            zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO,
+            abi.encode(msg.sender, inputToken)
+        );
+
+        // Delete for a gas refund.
+        delete _currentPool;
+
+        return zeroForOne ? uint256(amount1) : uint256(amount0);
+    }
+
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        if (msg.sender != _currentPool) revert UnauthorizedCaller();
+
+        (address sender, address inputToken) = abi.decode(
+            data,
+            (address, address)
+        );
+
+        if (amount0Delta > 0) {
+            inputToken.safeTransferFrom(
+                sender,
+                msg.sender,
+                uint256(amount0Delta)
+            );
+        } else if (amount1Delta > 0) {
+            inputToken.safeTransferFrom(
+                sender,
+                msg.sender,
+                uint256(amount1Delta)
+            );
+        } else {
+            // if both are not gt 0, both must be 0.
+            assert(amount0Delta == 0 && amount1Delta == 0);
+        }
+    }
 }

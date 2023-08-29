@@ -210,7 +210,6 @@ contract PoolRegistry is Ownable {
     }
 
     function swap(
-        bytes32 tokenPair,
         address inputToken,
         address outputToken,
         uint256 inputTokenAmount,
@@ -223,14 +222,15 @@ contract PoolRegistry is Ownable {
             inputTokenAmount
         );
 
-        bytes32[] memory pathKeys = _exchangePaths[tokenPair]
-            .paths[pathIndex]
-            .getKeys();
+        bytes32[] memory pathKeys = _exchangePaths[
+            keccak256(abi.encodePacked(inputToken, outputToken))
+        ].paths[pathIndex].getKeys();
         uint256 previousOutputTokenAmount = inputTokenAmount;
+        uint256 pathKeysLength = pathKeys.length;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
-            for (uint256 i = 0; i < pathKeys.length; ++i) {
+            for (uint256 i = 0; i < pathKeysLength; ++i) {
                 (
                     address pool,
                     uint256 inputTokenIndex,
@@ -239,10 +239,12 @@ contract PoolRegistry is Ownable {
                 IStandardPool poolInterface = poolInterfaces[pool];
 
                 // Transfer token to pool contract so that it can handle swapping.
-                poolTokens[pool][inputTokenIndex].safeTransfer(
-                    address(poolInterface),
-                    previousOutputTokenAmount
-                );
+                // Save 1 SLOAD by using `inputToken` on the first iteration.
+                (i == 0 ? inputToken : poolTokens[pool][inputTokenIndex])
+                    .safeTransfer(
+                        address(poolInterface),
+                        previousOutputTokenAmount
+                    );
 
                 previousOutputTokenAmount = poolInterface.swap(
                     pool,

@@ -24,9 +24,6 @@ contract PoolRegistry is Ownable {
     uint256 private constant PATH_INPUT_TOKEN_OFFSET = 26;
     uint256 private constant PATH_OUTPUT_TOKEN_OFFSET = 32;
 
-    // Enables us to track the last pool called with a callback and prevent unauthorized calls.
-    address private _callbackPool;
-
     // Maintaining a numeric index allows our pools to be enumerated.
     uint256 public nextPoolIndex = 0;
 
@@ -213,11 +210,11 @@ contract PoolRegistry is Ownable {
     }
 
     function swap(
-        uint256 pathIndex,
         address inputToken,
         address outputToken,
         uint256 inputTokenAmount,
-        uint256 minOutputTokenAmount
+        uint256 minOutputTokenAmount,
+        uint256 pathIndex
     ) external {
         inputToken.safeTransferFrom(
             msg.sender,
@@ -238,27 +235,20 @@ contract PoolRegistry is Ownable {
                     uint48 inputTokenIndex,
                     uint48 outputTokenIndex
                 ) = _decodePath(pathKeys[i]);
+                IStandardPool poolInterface = poolInterfaces[pool];
 
-                poolTokens[pool][inputTokenIndex].safeApprove(
-                    pool,
+                // Transfer token to pool contract so that it can handle swapping.
+                poolTokens[pool][inputTokenIndex].safeTransfer(
+                    address(poolInterface),
                     previousOutputTokenAmount
                 );
 
-                (bool success, bytes memory data) = address(
-                    poolInterfaces[pool]
-                ).delegatecall(
-                        abi.encodeWithSelector(
-                            IStandardPool.swap.selector,
-                            pool,
-                            inputTokenIndex,
-                            outputTokenIndex,
-                            previousOutputTokenAmount
-                        )
-                    );
-
-                if (!success) revert FailedCall(data);
-
-                previousOutputTokenAmount = uint256(bytes32(data));
+                previousOutputTokenAmount = poolInterface.swap(
+                    pool,
+                    inputTokenIndex,
+                    outputTokenIndex,
+                    previousOutputTokenAmount
+                );
             }
         }
 
@@ -330,24 +320,5 @@ contract PoolRegistry is Ownable {
         }
 
         emit AddExchangePath(tokenPair, newPathIndex, newPathLength, newPath);
-    }
-
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata data
-    ) external {
-        if (msg.sender != _callbackPool) revert UnauthorizedCaller();
-
-        address inputToken = abi.decode(data, (address));
-
-        if (amount0Delta > 0) {
-            inputToken.safeTransfer(msg.sender, uint256(amount0Delta));
-        } else if (amount1Delta > 0) {
-            inputToken.safeTransfer(msg.sender, uint256(amount1Delta));
-        } else {
-            // if both are not gt 0, both must be 0.
-            assert(amount0Delta == 0 && amount1Delta == 0);
-        }
     }
 }

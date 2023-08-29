@@ -59,7 +59,7 @@ contract UniswapV3Fee500 {
         1461446703485210103287273052203988822378723970341;
     uint24 private constant FEE = 500;
 
-    address private _currentPool;
+    address private _callbackPool;
 
     error UnauthorizedCaller();
 
@@ -135,10 +135,11 @@ contract UniswapV3Fee500 {
         address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex,
-        uint256 inputTokenAmount
+        uint256 inputTokenAmount,
+        uint256 minOutputTokenAmount
     ) external returns (uint256) {
         // Enables us to validate the caller of `uniswapV3SwapCallback`.
-        _currentPool = pool;
+        _callbackPool = pool;
 
         (address inputToken, , bool zeroForOne) = _computeTokenData(
             pool,
@@ -150,42 +151,12 @@ contract UniswapV3Fee500 {
             zeroForOne,
             int256(inputTokenAmount),
             zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO,
-            abi.encode(msg.sender, inputToken)
+            abi.encode(inputToken)
         );
 
         // Delete for a gas refund.
-        delete _currentPool;
+        delete _callbackPool;
 
-        return zeroForOne ? uint256(amount1) : uint256(amount0);
-    }
-
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata data
-    ) external {
-        if (msg.sender != _currentPool) revert UnauthorizedCaller();
-
-        (address sender, address inputToken) = abi.decode(
-            data,
-            (address, address)
-        );
-
-        if (amount0Delta > 0) {
-            inputToken.safeTransferFrom(
-                sender,
-                msg.sender,
-                uint256(amount0Delta)
-            );
-        } else if (amount1Delta > 0) {
-            inputToken.safeTransferFrom(
-                sender,
-                msg.sender,
-                uint256(amount1Delta)
-            );
-        } else {
-            // if both are not gt 0, both must be 0.
-            assert(amount0Delta == 0 && amount1Delta == 0);
-        }
+        return zeroForOne ? uint256(-amount1) : uint256(-amount0);
     }
 }

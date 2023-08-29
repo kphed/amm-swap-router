@@ -5,33 +5,9 @@ import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 interface IUniswapV3 {
-    struct QuoteExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint24 fee;
-        uint160 sqrtPriceLimitX96;
-    }
-
-    struct QuoteExactOutputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint256 amount;
-        uint24 fee;
-        uint160 sqrtPriceLimitX96;
-    }
-
     function token0() external view returns (address);
 
     function token1() external view returns (address);
-
-    function quoteExactInputSingle(
-        QuoteExactInputSingleParams memory params
-    ) external view returns (uint256);
-
-    function quoteExactOutputSingle(
-        QuoteExactOutputSingleParams memory params
-    ) external returns (uint256, uint160, uint32, uint256);
 
     function quote(
         address poolAddress,

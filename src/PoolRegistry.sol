@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
-import "forge-std/Test.sol";
-import {ERC20} from "solady/tokens/ERC20.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
@@ -234,12 +232,12 @@ contract PoolRegistry is Ownable {
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
-            for (uint256 j = 0; j < pathKeys.length; ++j) {
+            for (uint256 i = 0; i < pathKeys.length; ++i) {
                 (
                     address pool,
                     uint48 inputTokenIndex,
                     uint48 outputTokenIndex
-                ) = _decodePath(pathKeys[j]);
+                ) = _decodePath(pathKeys[i]);
 
                 poolTokens[pool][inputTokenIndex].safeApprove(
                     pool,

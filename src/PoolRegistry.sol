@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity 0.8.19;
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
@@ -47,9 +47,7 @@ contract PoolRegistry is Ownable {
 
     error Duplicate();
     error EmptyArray();
-    error FailedCall(bytes);
-    error UnauthorizedCaller();
-    error InsufficientOutputTokenAmount();
+    error InsufficientOutput();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -256,7 +254,7 @@ contract PoolRegistry is Ownable {
         }
 
         if (previousOutputTokenAmount < minOutputTokenAmount)
-            revert InsufficientOutputTokenAmount();
+            revert InsufficientOutput();
 
         outputToken.safeTransfer(msg.sender, previousOutputTokenAmount);
     }

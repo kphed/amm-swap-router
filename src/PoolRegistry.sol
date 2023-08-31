@@ -260,7 +260,7 @@ contract PoolRegistry is Ownable {
         uint256 inputTokenAmount,
         uint256 minOutputTokenAmount,
         uint256 pathIndex
-    ) external {
+    ) external returns (uint256 outputTokenAmount) {
         inputToken.safeTransferFrom(
             msg.sender,
             address(this),
@@ -270,8 +270,8 @@ contract PoolRegistry is Ownable {
         bytes32[] memory pathKeys = _exchangePaths[
             keccak256(abi.encodePacked(inputToken, outputToken))
         ].paths[pathIndex].getKeys();
-        uint256 previousOutputTokenAmount = inputTokenAmount;
         uint256 pathKeysLength = pathKeys.length;
+        outputTokenAmount = inputTokenAmount;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
@@ -288,22 +288,22 @@ contract PoolRegistry is Ownable {
                 (i == 0 ? inputToken : poolTokens[pool][inputTokenIndex])
                     .safeTransfer(
                         address(poolInterface),
-                        previousOutputTokenAmount
+                        outputTokenAmount
                     );
 
-                previousOutputTokenAmount = poolInterface.swap(
+                outputTokenAmount = poolInterface.swap(
                     pool,
                     inputTokenIndex,
                     outputTokenIndex,
-                    previousOutputTokenAmount
+                    outputTokenAmount
                 );
             }
         }
 
-        if (previousOutputTokenAmount < minOutputTokenAmount)
+        if (outputTokenAmount < minOutputTokenAmount)
             revert InsufficientOutput();
 
-        outputToken.safeTransfer(msg.sender, previousOutputTokenAmount);
+        outputToken.safeTransfer(msg.sender, outputTokenAmount);
     }
 
     /**

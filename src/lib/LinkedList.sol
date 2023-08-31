@@ -10,7 +10,6 @@ library LinkedList {
     struct Element {
         bytes32 previousKey;
         bytes32 nextKey;
-        bool exists;
     }
 
     struct List {
@@ -19,6 +18,16 @@ library LinkedList {
         uint256 numElements;
         mapping(bytes32 => Element) elements;
     }
+
+    error UndefinedKey();
+    error DuplicateKey();
+    error InvalidKey();
+    error InvalidPreviousKey();
+    error InvalidNextKey();
+    error UndefinedPreviousAndNextKey();
+    error UndefinedPreviousKey();
+    error UndefinedNextKey();
+    error KeyNotInList();
 
     /**
      * @notice Inserts an element into a doubly linked list.
@@ -33,60 +42,52 @@ library LinkedList {
         bytes32 previousKey,
         bytes32 nextKey
     ) internal {
-        require(key != bytes32(0), "Key must be defined");
-        require(!contains(list, key), "Can't insert an existing element");
-        require(
-            previousKey != key && nextKey != key,
-            "Key cannot be the same as previousKey or nextKey"
-        );
+        if (key == bytes32(0)) revert UndefinedKey();
+        if (contains(list, key)) revert DuplicateKey();
+        if (previousKey == key || nextKey == key) revert InvalidKey();
 
-        Element storage element = list.elements[key];
-        element.exists = true;
-
+        // If the list is empty, set the head and tail to the key.
         if (list.numElements == 0) {
             list.tail = key;
             list.head = key;
         } else {
-            require(
-                previousKey != bytes32(0) || nextKey != bytes32(0),
-                "Either previousKey or nextKey must be defined"
-            );
+            // Throw if neither the previous nor next keys are defined.
+            if (previousKey == bytes32(0) && nextKey == bytes32(0))
+                revert UndefinedPreviousAndNextKey();
 
-            element.previousKey = previousKey;
-            element.nextKey = nextKey;
+            list.elements[key] = Element(previousKey, nextKey);
 
             if (previousKey != bytes32(0)) {
-                require(
-                    contains(list, previousKey),
-                    "If previousKey is defined, it must exist in the list"
-                );
+                // Throw if the previous key is specified but does not exist.
+                if (!contains(list, previousKey)) revert UndefinedPreviousKey();
+
                 Element storage previousElement = list.elements[previousKey];
-                require(
-                    previousElement.nextKey == nextKey,
-                    "previousKey must be adjacent to nextKey"
-                );
+
+                if (previousElement.nextKey != nextKey) revert InvalidNextKey();
+
                 previousElement.nextKey = key;
             } else {
                 list.tail = key;
             }
 
             if (nextKey != bytes32(0)) {
-                require(
-                    contains(list, nextKey),
-                    "If nextKey is defined, it must exist in the list"
-                );
+                // Throw if the previous key is specified but does not exist.
+                if (!contains(list, nextKey)) revert UndefinedNextKey();
+
                 Element storage nextElement = list.elements[nextKey];
-                require(
-                    nextElement.previousKey == previousKey,
-                    "previousKey must be adjacent to nextKey"
-                );
+
+                if (nextElement.previousKey != previousKey)
+                    revert InvalidPreviousKey();
+
                 nextElement.previousKey = key;
             } else {
                 list.head = key;
             }
         }
 
-        ++list.numElements;
+        unchecked {
+            ++list.numElements;
+        }
     }
 
     /**
@@ -105,26 +106,26 @@ library LinkedList {
      */
     function remove(List storage list, bytes32 key) internal {
         Element storage element = list.elements[key];
-        require(key != bytes32(0) && contains(list, key), "key not in list");
+
+        if (key == bytes32(0) || !contains(list, key)) revert KeyNotInList();
+
         if (element.previousKey != bytes32(0)) {
-            Element storage previousElement = list.elements[
-                element.previousKey
-            ];
-            previousElement.nextKey = element.nextKey;
+            list.elements[element.previousKey].nextKey = element.nextKey;
         } else {
             list.tail = element.nextKey;
         }
 
         if (element.nextKey != bytes32(0)) {
-            Element storage nextElement = list.elements[element.nextKey];
-            nextElement.previousKey = element.previousKey;
+            list.elements[element.nextKey].previousKey = element.previousKey;
         } else {
             list.head = element.previousKey;
         }
 
         delete list.elements[key];
 
-        --list.numElements;
+        unchecked {
+            --list.numElements;
+        }
     }
 
     /**
@@ -140,13 +141,12 @@ library LinkedList {
         bytes32 previousKey,
         bytes32 nextKey
     ) internal {
-        require(
-            key != bytes32(0) &&
-                key != previousKey &&
-                key != nextKey &&
-                contains(list, key),
-            "key on in list"
-        );
+        if (
+            key == previousKey ||
+            key == nextKey ||
+            !contains(list, key)
+        ) revert InvalidKey();
+
         remove(list, key);
         insert(list, key, previousKey, nextKey);
     }
@@ -161,7 +161,14 @@ library LinkedList {
         List storage list,
         bytes32 key
     ) internal view returns (bool) {
-        return list.elements[key].exists;
+        // If the key is the head, or has a previous key defined then it exists.
+        if (
+            list.elements[key].previousKey != bytes32(0) ||
+            list.elements[key].nextKey != bytes32(0) ||
+            list.head == key
+        ) return true;
+
+        return false;
     }
 
     /**
@@ -175,14 +182,16 @@ library LinkedList {
         List storage list,
         uint256 n
     ) internal view returns (bytes32[] memory) {
-        require(n <= list.numElements, "not enough elements");
-
         bytes32[] memory keys = new bytes32[](n);
         bytes32 key = list.head;
 
-        for (uint256 i = 0; i < n; ++i) {
+        for (uint256 i = 0; i < n; ) {
             keys[i] = key;
             key = list.elements[key].previousKey;
+
+            unchecked {
+                ++i;
+            }
         }
 
         return keys;

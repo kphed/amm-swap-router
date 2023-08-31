@@ -33,11 +33,7 @@ contract PoolRegistry is Ownable {
     mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
     mapping(address token => LibBitmap.Bitmap poolIndexes) private _tokenPools;
 
-    event AddPool(
-        address indexed pool,
-        IStandardPool poolInterface,
-        uint256 poolIndex
-    );
+    event AddPool(address indexed pool, uint256 indexed newPoolIndex);
     event AddExchangePath(
         bytes32 indexed tokenPair,
         uint256 indexed newPathIndex
@@ -309,7 +305,7 @@ contract PoolRegistry is Ownable {
     function addPool(
         address pool,
         IStandardPool poolInterface
-    ) external onlyOwner {
+    ) public onlyOwner {
         // Should not allow redundant pools from being added.
         if (address(poolInterfaces[pool]) != address(0)) revert Duplicate();
 
@@ -317,10 +313,10 @@ contract PoolRegistry is Ownable {
         poolInterfaces[pool] = poolInterface;
 
         // Cache the pool index to save gas and allow `nextPoolIndex` to be incremented.
-        uint256 poolIndex = nextPoolIndex;
+        uint256 newPoolIndex = nextPoolIndex;
 
         // Map index to pool address.
-        poolIndexes[poolIndex] = pool;
+        poolIndexes[newPoolIndex] = pool;
 
         address[] memory tokens = poolInterface.tokens(pool);
         address[] storage _poolTokens = poolTokens[pool];
@@ -336,11 +332,11 @@ contract PoolRegistry is Ownable {
                 _poolTokens.push(token);
 
                 // Set the bit equal to the pool index for each token in the pool.
-                _tokenPools[token].set(poolIndex);
+                _tokenPools[token].set(newPoolIndex);
             }
         }
 
-        emit AddPool(pool, poolInterface, poolIndex);
+        emit AddPool(pool, newPoolIndex);
     }
 
     function addExchangePath(
@@ -363,6 +359,21 @@ contract PoolRegistry is Ownable {
         }
 
         emit AddExchangePath(tokenPair, newPathIndex);
+    }
+
+    function addPools(
+        address[] memory pools,
+        IStandardPool[] memory _poolInterfaces
+    ) external onlyOwner {
+        uint256 poolsLength = pools.length;
+
+        for (uint256 i = 0; i < poolsLength; ) {
+            addPool(pools[i], _poolInterfaces[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function addExchangePaths(

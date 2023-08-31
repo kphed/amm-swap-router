@@ -10,8 +10,8 @@ import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistry is Ownable {
     using LibBitmap for LibBitmap.Bitmap;
-    using Solarray for address[];
     using LinkedList for LinkedList.List;
+    using Solarray for address[];
     using SafeTransferLib for address;
 
     struct ExchangePaths {
@@ -124,13 +124,13 @@ contract PoolRegistry is Ownable {
         }
     }
 
-    function getOutputAmount(
+    function getOutputAmounts(
         bytes32 tokenPair,
         uint256 inputTokenAmount
-    ) external view returns (uint256[] memory outputTokenAmounts) {
+    ) public view returns (uint256[] memory outputTokenAmounts) {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
-        outputTokenAmounts = new uint256[](exchangePaths.nextIndex);
         uint256 exchangePathsLength = exchangePaths.nextIndex;
+        outputTokenAmounts = new uint256[](exchangePathsLength);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
@@ -163,13 +163,13 @@ contract PoolRegistry is Ownable {
         }
     }
 
-    function getInputAmount(
+    function getInputAmounts(
         bytes32 tokenPair,
         uint256 outputTokenAmount
-    ) external view returns (uint256[] memory inputTokenAmounts) {
+    ) public view returns (uint256[] memory inputTokenAmounts) {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
-        inputTokenAmounts = new uint256[](exchangePaths.nextIndex);
         uint256 exchangePathsLength = exchangePaths.nextIndex;
+        inputTokenAmounts = new uint256[](exchangePathsLength);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
@@ -203,6 +203,53 @@ contract PoolRegistry is Ownable {
 
                 // Store the final quote for this path before it is reinitialized for the next path.
                 inputTokenAmounts[i] = transientQuote;
+            }
+        }
+    }
+
+    function getBestOutputAmount(
+        bytes32 tokenPair,
+        uint256 inputTokenAmount
+    ) external view returns (uint256 pathIndex, uint256 outputAmount) {
+        uint256[] memory outputAmounts = getOutputAmounts(
+            tokenPair,
+            inputTokenAmount
+        );
+        uint256 oLen = outputAmounts.length;
+
+        for (uint256 i = 0; i < oLen; ) {
+            if (outputAmounts[i] > outputAmount) {
+                pathIndex = i;
+                outputAmount = outputAmounts[i];
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function getBestInputAmount(
+        bytes32 tokenPair,
+        uint256 outputTokenAmount
+    ) external view returns (uint256 pathIndex, uint256 inputAmount) {
+        uint256[] memory inputAmounts = getInputAmounts(
+            tokenPair,
+            outputTokenAmount
+        );
+        uint256 iLen = inputAmounts.length;
+
+        // We need a non-zero starting value for `inputAmount` since the best input amount is the lowest.
+        inputAmount = inputAmounts[0];
+
+        for (uint256 i = 1; i < iLen; ) {
+            if (inputAmounts[i] < inputAmount) {
+                pathIndex = i;
+                inputAmount = inputAmounts[i];
+            }
+
+            unchecked {
+                ++i;
             }
         }
     }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {LinkedList} from "src/lib/LinkedList.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 
@@ -21,7 +21,8 @@ contract PoolRegistry is Ownable {
     uint256 private constant _PATH_OUTPUT_TOKEN_OFFSET = 32;
 
     mapping(address pool => IStandardPool poolInterface) public poolInterfaces;
-    mapping(address pool => address[] tokens) public poolTokens;
+    mapping(address pool => mapping(uint256 index => address token) tokens)
+        public poolTokens;
     mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
 
     event AddPool(address indexed pool, address[] tokens);
@@ -31,7 +32,6 @@ contract PoolRegistry is Ownable {
     );
 
     error Duplicate();
-    error EmptyArray();
     error InsufficientOutput();
 
     constructor(address initialOwner) {
@@ -282,12 +282,11 @@ contract PoolRegistry is Ownable {
         poolInterfaces[pool] = poolInterface;
 
         address[] memory tokens = poolInterface.tokens(pool);
-        address[] storage _poolTokens = poolTokens[pool];
         uint256 tokensLength = tokens.length;
 
         unchecked {
             for (uint256 i = 0; i < tokensLength; ++i) {
-                _poolTokens.push(tokens[i]);
+                poolTokens[pool][i] = tokens[i];
             }
         }
 

@@ -3,15 +3,11 @@ pragma solidity 0.8.19;
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
-import {LibBitmap} from "solady/utils/LibBitmap.sol";
-import {Solarray} from "solarray/Solarray.sol";
 import {LinkedList} from "src/lib/LinkedList.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistry is Ownable {
-    using LibBitmap for LibBitmap.Bitmap;
     using LinkedList for LinkedList.List;
-    using Solarray for address[];
     using SafeTransferLib for address;
 
     struct ExchangePaths {
@@ -24,16 +20,11 @@ contract PoolRegistry is Ownable {
     uint256 private constant _PATH_INPUT_TOKEN_OFFSET = 26;
     uint256 private constant _PATH_OUTPUT_TOKEN_OFFSET = 32;
 
-    // Maintaining a numeric index allows our pools to be enumerated.
-    uint256 public nextPoolIndex = 0;
-
     mapping(address pool => IStandardPool poolInterface) public poolInterfaces;
     mapping(address pool => address[] tokens) public poolTokens;
-    mapping(uint256 index => address pool) public poolIndexes;
     mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
-    mapping(address token => LibBitmap.Bitmap poolIndexes) private _tokenPools;
 
-    event AddPool(address indexed pool, uint256 indexed newPoolIndex);
+    event AddPool(address indexed pool, address[] tokens);
     event AddExchangePath(
         bytes32 indexed tokenPair,
         uint256 indexed newPathIndex
@@ -60,28 +51,6 @@ contract PoolRegistry is Ownable {
             pool := mload(add(_path, _PATH_POOL_OFFSET))
             inputTokenIndex := mload(add(_path, _PATH_INPUT_TOKEN_OFFSET))
             outputTokenIndex := mload(add(_path, _PATH_OUTPUT_TOKEN_OFFSET))
-        }
-    }
-
-    function getPoolTokens(
-        address pool
-    ) external view returns (address[] memory) {
-        return poolTokens[pool];
-    }
-
-    function getTokenPools(
-        address token
-    ) external view returns (address[] memory tokenPools) {
-        uint256 maxIterations = nextPoolIndex;
-
-        for (uint256 i = 0; i < maxIterations; ) {
-            if (_tokenPools[token].get(i)) {
-                tokenPools = tokenPools.append(poolIndexes[i]);
-            }
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -312,31 +281,17 @@ contract PoolRegistry is Ownable {
         // Store the new pool, along with the number of tokens in it.
         poolInterfaces[pool] = poolInterface;
 
-        // Cache the pool index to save gas and allow `nextPoolIndex` to be incremented.
-        uint256 newPoolIndex = nextPoolIndex;
-
-        // Map index to pool address.
-        poolIndexes[newPoolIndex] = pool;
-
         address[] memory tokens = poolInterface.tokens(pool);
         address[] storage _poolTokens = poolTokens[pool];
         uint256 tokensLength = tokens.length;
 
         unchecked {
-            // Extremely unlikely to ever overflow.
-            ++nextPoolIndex;
-
             for (uint256 i = 0; i < tokensLength; ++i) {
-                address token = tokens[i];
-
-                _poolTokens.push(token);
-
-                // Set the bit equal to the pool index for each token in the pool.
-                _tokenPools[token].set(newPoolIndex);
+                _poolTokens.push(tokens[i]);
             }
         }
 
-        emit AddPool(pool, newPoolIndex);
+        emit AddPool(pool, tokens);
     }
 
     function addExchangePath(
@@ -362,13 +317,13 @@ contract PoolRegistry is Ownable {
     }
 
     function addPools(
-        address[] memory pools,
-        IStandardPool[] memory _poolInterfaces
+        address[] calldata pools,
+        IStandardPool[] calldata interfaces
     ) external onlyOwner {
         uint256 poolsLength = pools.length;
 
         for (uint256 i = 0; i < poolsLength; ) {
-            addPool(pools[i], _poolInterfaces[i]);
+            addPool(pools[i], interfaces[i]);
 
             unchecked {
                 ++i;

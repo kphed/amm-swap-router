@@ -3,12 +3,15 @@ pragma solidity 0.8.19;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {Solarray} from "solarray/Solarray.sol";
 import {LinkedList} from "src/lib/LinkedList.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistry is Ownable {
     using LinkedList for LinkedList.List;
     using SafeTransferLib for address;
+    using Solarray for address[];
+    using Solarray for uint256[];
 
     struct ExchangePaths {
         uint256 nextIndex;
@@ -62,25 +65,22 @@ contract PoolRegistry is Ownable {
         view
         returns (
             address[] memory paths,
-            uint48[] memory inputTokenIndexes,
-            uint48[] memory outputTokenIndexes
+            uint256[] memory inputTokenIndexes,
+            uint256[] memory outputTokenIndexes
         )
     {
         LinkedList.List storage list = _exchangePaths[tokenPair].paths[index];
-        uint256 listNumElements = list.numElements;
-        paths = new address[](listNumElements);
-        inputTokenIndexes = new uint48[](listNumElements);
-        outputTokenIndexes = new uint48[](listNumElements);
         bytes32 listKey = list.head;
-        uint256 returnIndex = 0;
 
         while (listKey != bytes32(0)) {
             (
-                paths[returnIndex],
-                inputTokenIndexes[returnIndex],
-                outputTokenIndexes[returnIndex]
+                address path,
+                uint256 inputTokenIndex,
+                uint256 outputTokenIndex
             ) = _decodePath(listKey);
-
+            paths = paths.append(path);
+            inputTokenIndexes = inputTokenIndexes.append(inputTokenIndex);
+            outputTokenIndexes = outputTokenIndexes.append(outputTokenIndex);
             listKey = list.elements[listKey].nextKey;
         }
     }
@@ -88,17 +88,18 @@ contract PoolRegistry is Ownable {
     function getOutputAmount(
         bytes32 tokenPair,
         uint256 inputTokenAmount
-    ) public view returns (uint256 bestOutputIndex, uint256 bestOutputAmount) {
+    )
+        external
+        view
+        returns (uint256 bestOutputIndex, uint256 bestOutputAmount)
+    {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         uint256 exchangePathsLength = exchangePaths.nextIndex;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
-                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
                 uint256 transientQuote = inputTokenAmount;
-
                 LinkedList.List storage list = exchangePaths.paths[i];
                 bytes32 listKey = list.head;
 
@@ -108,14 +109,12 @@ contract PoolRegistry is Ownable {
                         uint48 inputTokenIndex,
                         uint48 outputTokenIndex
                     ) = _decodePath(listKey);
-
                     transientQuote = poolInterfaces[pool].quoteTokenOutput(
                         pool,
                         inputTokenIndex,
                         outputTokenIndex,
                         transientQuote
                     );
-
                     listKey = list.elements[listKey].nextKey;
                 }
 
@@ -131,17 +130,14 @@ contract PoolRegistry is Ownable {
     function getInputAmount(
         bytes32 tokenPair,
         uint256 outputTokenAmount
-    ) public view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
+    ) external view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         uint256 exchangePathsLength = exchangePaths.nextIndex;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                // For paths with 2+ pools, we need to store and pipe the outputs into each subsequent quote.
-                // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
                 uint256 transientQuote = outputTokenAmount;
-
                 LinkedList.List storage list = exchangePaths.paths[i];
                 bytes32 listKey = list.tail;
 
@@ -151,14 +147,12 @@ contract PoolRegistry is Ownable {
                         uint48 inputTokenIndex,
                         uint48 outputTokenIndex
                     ) = _decodePath(listKey);
-
                     transientQuote = poolInterfaces[pool].quoteTokenInput(
                         pool,
                         inputTokenIndex,
                         outputTokenIndex,
                         transientQuote
                     );
-
                     listKey = list.elements[listKey].previousKey;
                 }
 

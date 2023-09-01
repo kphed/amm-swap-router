@@ -15,7 +15,6 @@ library LinkedList {
     struct List {
         bytes32 head;
         bytes32 tail;
-        uint256 numElements;
         mapping(bytes32 => Element) elements;
     }
 
@@ -46,8 +45,8 @@ library LinkedList {
         if (contains(list, key)) revert DuplicateKey();
         if (previousKey == key || nextKey == key) revert InvalidKey();
 
-        // If the list is empty, set the head and tail to the key.
-        if (list.numElements == 0) {
+        // If the list is empty (the head should never be empty bytes otherwise), set the head and tail to the key.
+        if (list.head == bytes32(0)) {
             list.tail = key;
             list.head = key;
         } else {
@@ -84,10 +83,6 @@ library LinkedList {
                 list.head = key;
             }
         }
-
-        unchecked {
-            ++list.numElements;
-        }
     }
 
     /**
@@ -99,8 +94,7 @@ library LinkedList {
         if (key == bytes32(0)) revert UndefinedKey();
         if (contains(list, key)) revert DuplicateKey();
 
-        // If the list is empty, set the head and tail to the key.
-        if (list.numElements == 0) {
+        if (list.head == bytes32(0)) {
             list.tail = key;
             list.head = key;
         } else {
@@ -114,10 +108,6 @@ library LinkedList {
 
             // Set the new tail to point to the previous tail.
             list.elements[key].previousKey = previousTail;
-        }
-
-        unchecked {
-            ++list.numElements;
         }
     }
 
@@ -144,10 +134,6 @@ library LinkedList {
         }
 
         delete list.elements[key];
-
-        unchecked {
-            --list.numElements;
-        }
     }
 
     /**
@@ -189,42 +175,5 @@ library LinkedList {
         ) return true;
 
         return false;
-    }
-
-    /**
-     * @notice Returns the keys of the N elements at the head of the list.
-     * @param list A storage pointer to the underlying list.
-     * @param n The number of elements to return.
-     * @return The keys of the N elements at the head of the list.
-     * @dev Reverts if n is greater than the number of elements in the list.
-     */
-    function headN(
-        List storage list,
-        uint256 n
-    ) internal view returns (bytes32[] memory) {
-        bytes32[] memory keys = new bytes32[](n);
-        bytes32 key = list.head;
-
-        for (uint256 i = 0; i < n; ) {
-            keys[i] = key;
-            key = list.elements[key].nextKey;
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        return keys;
-    }
-
-    /**
-     * @notice Gets all element keys from the doubly linked list.
-     * @param list A storage pointer to the underlying list.
-     * @return All element keys from head to tail.
-     */
-    function getKeys(
-        List storage list
-    ) internal view returns (bytes32[] memory) {
-        return headN(list, list.numElements);
     }
 }

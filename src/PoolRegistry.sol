@@ -101,15 +101,15 @@ contract PoolRegistry is Ownable {
                 // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
                 uint256 transientQuote = inputTokenAmount;
 
-                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
-                uint256 pathKeysLength = pathKeys.length;
+                LinkedList.List storage list = exchangePaths.paths[i];
+                bytes32 listKey = list.head;
 
-                for (uint256 j = 0; j < pathKeysLength; ++j) {
+                while (listKey != bytes32(0)) {
                     (
                         address pool,
                         uint48 inputTokenIndex,
                         uint48 outputTokenIndex
-                    ) = _decodePath(pathKeys[j]);
+                    ) = _decodePath(listKey);
 
                     transientQuote = poolInterfaces[pool].quoteTokenOutput(
                         pool,
@@ -117,6 +117,8 @@ contract PoolRegistry is Ownable {
                         outputTokenIndex,
                         transientQuote
                     );
+
+                    listKey = list.elements[listKey].previousKey;
                 }
 
                 // Compare the latest output amount against the current best output amount.
@@ -142,18 +144,15 @@ contract PoolRegistry is Ownable {
                 // Initialized with `inputTokenAmount` since it's the very first input amount in the quote chain.
                 uint256 transientQuote = outputTokenAmount;
 
-                bytes32[] memory pathKeys = exchangePaths.paths[i].getKeys();
-                uint256 pathKeysLength = pathKeys.length;
+                LinkedList.List storage list = exchangePaths.paths[i];
+                bytes32 listKey = list.tail;
 
-                // Since we are fetching the input amount based on the output, we need to start from the last path element.
-                while (true) {
-                    --pathKeysLength;
-
+                while (listKey != bytes32(0)) {
                     (
                         address pool,
                         uint48 inputTokenIndex,
                         uint48 outputTokenIndex
-                    ) = _decodePath(pathKeys[pathKeysLength]);
+                    ) = _decodePath(listKey);
 
                     transientQuote = poolInterfaces[pool].quoteTokenInput(
                         pool,
@@ -162,7 +161,7 @@ contract PoolRegistry is Ownable {
                         transientQuote
                     );
 
-                    if (pathKeysLength == 0) break;
+                    listKey = list.elements[listKey].nextKey;
                 }
 
                 // Compare the latest input amount against the current best input amount.

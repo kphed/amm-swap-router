@@ -87,13 +87,12 @@ contract PoolRegistry is Ownable {
         }
     }
 
-    function getOutputAmounts(
+    function getOutputAmount(
         bytes32 tokenPair,
         uint256 inputTokenAmount
-    ) public view returns (uint256[] memory outputTokenAmounts) {
+    ) public view returns (uint256 bestOutputIndex, uint256 bestOutputAmount) {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         uint256 exchangePathsLength = exchangePaths.nextIndex;
-        outputTokenAmounts = new uint256[](exchangePathsLength);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
@@ -120,19 +119,21 @@ contract PoolRegistry is Ownable {
                     );
                 }
 
-                // Store the final quote for this path before it is reinitialized for the next path.
-                outputTokenAmounts[i] = transientQuote;
+                // Compare the latest output amount against the current best output amount.
+                if (transientQuote > bestOutputAmount) {
+                    bestOutputIndex = i;
+                    bestOutputAmount = transientQuote;
+                }
             }
         }
     }
 
-    function getInputAmounts(
+    function getInputAmount(
         bytes32 tokenPair,
         uint256 outputTokenAmount
-    ) public view returns (uint256[] memory inputTokenAmounts) {
+    ) public view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         uint256 exchangePathsLength = exchangePaths.nextIndex;
-        inputTokenAmounts = new uint256[](exchangePathsLength);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
@@ -164,55 +165,12 @@ contract PoolRegistry is Ownable {
                     if (pathKeysLength == 0) break;
                 }
 
-                // Store the final quote for this path before it is reinitialized for the next path.
-                inputTokenAmounts[i] = transientQuote;
-            }
-        }
-    }
-
-    function getBestOutputAmount(
-        bytes32 tokenPair,
-        uint256 inputTokenAmount
-    ) external view returns (uint256 pathIndex, uint256 outputAmount) {
-        uint256[] memory outputAmounts = getOutputAmounts(
-            tokenPair,
-            inputTokenAmount
-        );
-        uint256 oLen = outputAmounts.length;
-
-        for (uint256 i = 0; i < oLen; ) {
-            if (outputAmounts[i] > outputAmount) {
-                pathIndex = i;
-                outputAmount = outputAmounts[i];
-            }
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function getBestInputAmount(
-        bytes32 tokenPair,
-        uint256 outputTokenAmount
-    ) external view returns (uint256 pathIndex, uint256 inputAmount) {
-        uint256[] memory inputAmounts = getInputAmounts(
-            tokenPair,
-            outputTokenAmount
-        );
-        uint256 iLen = inputAmounts.length;
-
-        // We need a non-zero starting value for `inputAmount` since the best input amount is the lowest.
-        inputAmount = inputAmounts[0];
-
-        for (uint256 i = 1; i < iLen; ) {
-            if (inputAmounts[i] < inputAmount) {
-                pathIndex = i;
-                inputAmount = inputAmounts[i];
-            }
-
-            unchecked {
-                ++i;
+                // Compare the latest input amount against the current best input amount.
+                // If the best input amount is unset, set it.
+                if (transientQuote < bestInputAmount || bestInputAmount == 0) {
+                    bestInputIndex = i;
+                    bestInputAmount = transientQuote;
+                }
             }
         }
     }

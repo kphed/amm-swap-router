@@ -66,24 +66,22 @@ contract PoolRegistry is Ownable {
             uint48[] memory outputTokenIndexes
         )
     {
-        bytes32[] memory path = _exchangePaths[tokenPair]
-            .paths[index]
-            .getKeys();
-        uint256 pathLength = path.length;
-        paths = new address[](pathLength);
-        inputTokenIndexes = new uint48[](pathLength);
-        outputTokenIndexes = new uint48[](pathLength);
+        LinkedList.List storage list = _exchangePaths[tokenPair].paths[index];
+        uint256 listNumElements = list.numElements;
+        paths = new address[](listNumElements);
+        inputTokenIndexes = new uint48[](listNumElements);
+        outputTokenIndexes = new uint48[](listNumElements);
+        bytes32 listKey = list.head;
+        uint256 returnIndex = 0;
 
-        for (uint256 i = 0; i < pathLength; ) {
+        while (listKey != bytes32(0)) {
             (
-                paths[i],
-                inputTokenIndexes[i],
-                outputTokenIndexes[i]
-            ) = _decodePath(path[i]);
+                paths[returnIndex],
+                inputTokenIndexes[returnIndex],
+                outputTokenIndexes[returnIndex]
+            ) = _decodePath(listKey);
 
-            unchecked {
-                ++i;
-            }
+            listKey = list.elements[listKey].nextKey;
         }
     }
 
@@ -118,7 +116,7 @@ contract PoolRegistry is Ownable {
                         transientQuote
                     );
 
-                    listKey = list.elements[listKey].previousKey;
+                    listKey = list.elements[listKey].nextKey;
                 }
 
                 // Compare the latest output amount against the current best output amount.
@@ -161,7 +159,7 @@ contract PoolRegistry is Ownable {
                         transientQuote
                     );
 
-                    listKey = list.elements[listKey].nextKey;
+                    listKey = list.elements[listKey].previousKey;
                 }
 
                 // Compare the latest input amount against the current best input amount.
@@ -187,34 +185,32 @@ contract PoolRegistry is Ownable {
             inputTokenAmount
         );
 
-        bytes32[] memory pathKeys = _exchangePaths[
+        LinkedList.List storage list = _exchangePaths[
             keccak256(abi.encodePacked(inputToken, outputToken))
-        ].paths[pathIndex].getKeys();
-        uint256 pathKeysLength = pathKeys.length;
+        ].paths[pathIndex];
+        bytes32 listKey = list.head;
         outputTokenAmount = inputTokenAmount;
 
-        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
-        unchecked {
-            for (uint256 i = 0; i < pathKeysLength; ++i) {
-                (
-                    address pool,
-                    uint256 inputTokenIndex,
-                    uint256 outputTokenIndex
-                ) = _decodePath(pathKeys[i]);
-                IStandardPool poolInterface = poolInterfaces[pool];
+        while (listKey != bytes32(0)) {
+            (
+                address pool,
+                uint256 inputTokenIndex,
+                uint256 outputTokenIndex
+            ) = _decodePath(listKey);
+            IStandardPool poolInterface = poolInterfaces[pool];
 
-                // Transfer token to pool contract so that it can handle swapping.
-                // Save 1 SLOAD by using `inputToken` on the first iteration.
-                (i == 0 ? inputToken : poolTokens[pool][inputTokenIndex])
-                    .safeTransfer(address(poolInterface), outputTokenAmount);
+            poolTokens[pool][inputTokenIndex].safeTransfer(
+                address(poolInterface),
+                outputTokenAmount
+            );
 
-                outputTokenAmount = poolInterface.swap(
-                    pool,
-                    inputTokenIndex,
-                    outputTokenIndex,
-                    outputTokenAmount
-                );
-            }
+            outputTokenAmount = poolInterface.swap(
+                pool,
+                inputTokenIndex,
+                outputTokenIndex,
+                outputTokenAmount
+            );
+            listKey = list.elements[listKey].nextKey;
         }
 
         if (outputTokenAmount < minOutputTokenAmount)

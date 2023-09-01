@@ -96,7 +96,29 @@ library LinkedList {
      * @param key The key of the element to insert.
      */
     function push(List storage list, bytes32 key) internal {
-        insert(list, key, bytes32(0), list.tail);
+        if (key == bytes32(0)) revert UndefinedKey();
+        if (contains(list, key)) revert DuplicateKey();
+
+        // If the list is empty, set the head and tail to the key.
+        if (list.numElements == 0) {
+            list.tail = key;
+            list.head = key;
+        } else {
+            bytes32 previousTail = list.tail;
+
+            // Update the previous tail to point to the new tail.
+            list.elements[previousTail].nextKey = key;
+
+            // Set the new tail.
+            list.tail = key;
+
+            // Set the new tail to point to the previous tail.
+            list.elements[key].previousKey = previousTail;
+        }
+
+        unchecked {
+            ++list.numElements;
+        }
     }
 
     /**
@@ -141,11 +163,8 @@ library LinkedList {
         bytes32 previousKey,
         bytes32 nextKey
     ) internal {
-        if (
-            key == previousKey ||
-            key == nextKey ||
-            !contains(list, key)
-        ) revert InvalidKey();
+        if (key == previousKey || key == nextKey || !contains(list, key))
+            revert InvalidKey();
 
         remove(list, key);
         insert(list, key, previousKey, nextKey);
@@ -161,11 +180,12 @@ library LinkedList {
         List storage list,
         bytes32 key
     ) internal view returns (bool) {
-        // If the key is the head, or has a previous key defined then it exists.
+        // If the key is the head or tail, or has a previous key defined then it exists.
         if (
             list.elements[key].previousKey != bytes32(0) ||
             list.elements[key].nextKey != bytes32(0) ||
-            list.head == key
+            list.head == key ||
+            list.tail == key
         ) return true;
 
         return false;
@@ -187,7 +207,7 @@ library LinkedList {
 
         for (uint256 i = 0; i < n; ) {
             keys[i] = key;
-            key = list.elements[key].previousKey;
+            key = list.elements[key].nextKey;
 
             unchecked {
                 ++i;

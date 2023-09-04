@@ -37,6 +37,7 @@ contract PoolRegistry is Ownable {
     error Duplicate();
     error InsufficientOutput();
     error PoolTokenNotSet();
+    error PoolTokensIdentical();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -58,31 +59,39 @@ contract PoolRegistry is Ownable {
         }
     }
 
-    function getExchangePath(
-        bytes32 tokenPair,
-        uint256 index
+    function getExchangePaths(
+        bytes32 tokenPair
     )
         external
         view
         returns (
-            address[] memory paths,
-            uint256[] memory inputTokenIndexes,
-            uint256[] memory outputTokenIndexes
+            uint256 nextIndex,
+            address[][] memory pools,
+            uint256[][] memory inputTokenIndexes,
+            uint256[][] memory outputTokenIndexes
         )
     {
-        LinkedList.List storage list = _exchangePaths[tokenPair].paths[index];
-        bytes32 listKey = list.head;
+        ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
+        nextIndex = exchangePaths.nextIndex;
+        pools = new address[][](nextIndex);
+        inputTokenIndexes = new uint256[][](nextIndex);
+        outputTokenIndexes = new uint256[][](nextIndex);
 
-        while (listKey != bytes32(0)) {
-            (
-                address path,
-                uint256 inputTokenIndex,
-                uint256 outputTokenIndex
-            ) = _decodePath(listKey);
-            paths = paths.append(path);
-            inputTokenIndexes = inputTokenIndexes.append(inputTokenIndex);
-            outputTokenIndexes = outputTokenIndexes.append(outputTokenIndex);
-            listKey = list.elements[listKey].nextKey;
+        for (uint256 i = 0; i < nextIndex; ++i) {
+            LinkedList.List storage list = exchangePaths.paths[i];
+            bytes32 listKey = list.head;
+
+            while (listKey != bytes32(0)) {
+                (
+                    address pool,
+                    uint256 inputTokenIndex,
+                    uint256 outputTokenIndex
+                ) = _decodePath(listKey);
+                pools[i] = pools[i].append(pool);
+                inputTokenIndexes[i] = inputTokenIndexes[i].append(inputTokenIndex);
+                outputTokenIndexes[i] = outputTokenIndexes[i].append(outputTokenIndex);
+                listKey = list.elements[listKey].nextKey;
+            }
         }
     }
 
@@ -285,6 +294,10 @@ contract PoolRegistry is Ownable {
                     revert PoolTokenNotSet();
                 if (poolTokens[pool][outputTokenIndex] == address(0))
                     revert PoolTokenNotSet();
+
+                // Unless we're arbing (we're not), there should be no reason to swap the same tokens.
+                if (inputTokenIndex == outputTokenIndex)
+                    revert PoolTokensIdentical();
 
                 exchangePathsList.push(newPathItem);
             }

@@ -223,4 +223,192 @@ contract PoolRegistryTest is Test {
             }
         }
     }
+
+    /*//////////////////////////////////////////////////////////////
+                             addExchangePath
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotAddExchangePathUnauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory newPath = new bytes32[](2);
+        newPath[0] = _encodePath(CURVE_CRVUSD_USDC, 1, 0);
+        newPath[1] = _encodePath(UNISWAP_USDC_ETH, 0, 1);
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.addExchangePath(tokenPair, newPath);
+    }
+
+    function testCannotAddExchangePathPoolTokenNotSet1() external {
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory newPath = new bytes32[](1);
+        uint256 inputTokenIndex = 1;
+        uint256 outputTokenIndex = 0;
+        newPath[0] = _encodePath(
+            CURVE_CRVUSD_USDC,
+            uint48(inputTokenIndex),
+            uint48(outputTokenIndex)
+        );
+
+        assertEq(
+            address(0),
+            registry.poolTokens(CURVE_CRVUSD_USDC, inputTokenIndex)
+        );
+        assertEq(
+            address(0),
+            registry.poolTokens(CURVE_CRVUSD_USDC, outputTokenIndex)
+        );
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.PoolTokenNotSet.selector);
+
+        registry.addExchangePath(tokenPair, newPath);
+    }
+
+    function testCannotAddExchangePathPoolTokenNotSet2() external {
+        address pool = CURVE_CRVUSD_USDC;
+        IStandardPool poolInterface = curveStableSwap;
+
+        registry.addPool(pool, poolInterface);
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory newPath = new bytes32[](1);
+        uint256 invalidInputTokenIndex = 2;
+        uint256 outputTokenIndex = 0;
+        newPath[0] = _encodePath(
+            pool,
+            uint48(invalidInputTokenIndex),
+            uint48(outputTokenIndex)
+        );
+
+        assertEq(address(0), registry.poolTokens(pool, invalidInputTokenIndex));
+        assertTrue(address(0) != registry.poolTokens(pool, outputTokenIndex));
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.PoolTokenNotSet.selector);
+
+        registry.addExchangePath(tokenPair, newPath);
+    }
+
+    function testCannotAddExchangePathPoolTokenNotSet3() external {
+        address pool = CURVE_CRVUSD_USDC;
+        IStandardPool poolInterface = curveStableSwap;
+
+        registry.addPool(pool, poolInterface);
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory newPath = new bytes32[](1);
+        uint256 inputTokenIndex = 1;
+        uint256 invalidOutputTokenIndex = 2;
+        newPath[0] = _encodePath(
+            pool,
+            uint48(inputTokenIndex),
+            uint48(invalidOutputTokenIndex)
+        );
+
+        assertEq(
+            address(0),
+            registry.poolTokens(pool, invalidOutputTokenIndex)
+        );
+        assertTrue(address(0) != registry.poolTokens(pool, inputTokenIndex));
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.PoolTokenNotSet.selector);
+
+        registry.addExchangePath(tokenPair, newPath);
+    }
+
+    function testCannotAddExchangePathPoolTokensIdentical() external {
+        address pool = CURVE_CRVUSD_USDC;
+        IStandardPool poolInterface = curveStableSwap;
+
+        registry.addPool(pool, poolInterface);
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory newPath = new bytes32[](1);
+        uint256 inputTokenIndex = 0;
+        uint256 outputTokenIndex = 0;
+        newPath[0] = _encodePath(
+            pool,
+            uint48(inputTokenIndex),
+            uint48(outputTokenIndex)
+        );
+
+        assertTrue(address(0) != registry.poolTokens(pool, inputTokenIndex));
+        assertTrue(address(0) != registry.poolTokens(pool, outputTokenIndex));
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.PoolTokensIdentical.selector);
+
+        registry.addExchangePath(tokenPair, newPath);
+    }
+
+    function testAddExchangePath() external {
+        address[] memory pools = new address[](2);
+        pools[0] = CURVE_CRVUSD_USDC;
+        pools[1] = UNISWAP_USDC_ETH;
+        IStandardPool[] memory poolInterfaces = new IStandardPool[](2);
+        poolInterfaces[0] = curveStableSwap;
+        poolInterfaces[1] = uniswapV3Fee500;
+
+        registry.addPools(pools, poolInterfaces);
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        bytes32[] memory newPath = new bytes32[](2);
+
+        // CRVUSD => USDC
+        newPath[0] = _encodePath(pools[0], 1, 0);
+
+        assertEq(CRVUSD, registry.poolTokens(pools[0], 1));
+        assertEq(USDC, registry.poolTokens(pools[0], 0));
+
+        // USDC => WETH
+        newPath[1] = _encodePath(pools[1], 0, 1);
+
+        assertEq(USDC, registry.poolTokens(pools[1], 0));
+        assertEq(WETH, registry.poolTokens(pools[1], 1));
+
+        (uint256 nextIndex, , , ) = registry.getExchangePaths(tokenPair);
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit AddExchangePath(tokenPair, nextIndex);
+
+        registry.addExchangePath(tokenPair, newPath);
+
+        (
+            ,
+            address[][] memory _pools,
+            uint256[][] memory inputTokenIndexes,
+            uint256[][] memory outputTokenIndexes
+        ) = registry.getExchangePaths(tokenPair);
+
+        for (uint256 i = 0; i < pools.length; ++i) {
+            assertEq(pools[i], _pools[nextIndex][i]);
+            assertTrue(
+                address(0) !=
+                    registry.poolTokens(
+                        pools[i],
+                        inputTokenIndexes[nextIndex][i]
+                    )
+            );
+            assertTrue(
+                address(0) !=
+                    registry.poolTokens(
+                        pools[i],
+                        outputTokenIndexes[nextIndex][i]
+                    )
+            );
+        }
+    }
 }

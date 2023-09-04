@@ -240,6 +240,21 @@ contract PoolRegistry is Ownable {
         emit AddPool(pool, tokens);
     }
 
+    function addPools(
+        address[] calldata pools,
+        IStandardPool[] calldata interfaces
+    ) external onlyOwner {
+        uint256 poolsLength = pools.length;
+
+        for (uint256 i = 0; i < poolsLength; ) {
+            addPool(pools[i], interfaces[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function addExchangePath(
         bytes32 tokenPair,
         bytes32[] calldata newPath
@@ -260,21 +275,6 @@ contract PoolRegistry is Ownable {
         }
 
         emit AddExchangePath(tokenPair, newPathIndex);
-    }
-
-    function addPools(
-        address[] calldata pools,
-        IStandardPool[] calldata interfaces
-    ) external onlyOwner {
-        uint256 poolsLength = pools.length;
-
-        for (uint256 i = 0; i < poolsLength; ) {
-            addPool(pools[i], interfaces[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     function addExchangePaths(

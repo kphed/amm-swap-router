@@ -145,4 +145,82 @@ contract PoolRegistryTest is Test {
             assertEq(tokens[i], registry.poolTokens(pool, i));
         }
     }
+
+    /*//////////////////////////////////////////////////////////////
+                             addPools
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotAddPoolsUnauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        address[] memory pools = new address[](2);
+        pools[0] = CURVE_CRVUSD_USDT;
+        pools[1] = UNISWAP_USDT_ETH;
+        IStandardPool[] memory poolInterfaces = new IStandardPool[](2);
+        poolInterfaces[0] = curveStableSwap;
+        poolInterfaces[1] = uniswapV3Fee500;
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.addPools(pools, poolInterfaces);
+    }
+
+    function testCannotAddPoolsDuplicate() external {
+        address msgSender = registry.owner();
+        address[] memory pools = new address[](2);
+        pools[0] = CURVE_CRVUSD_USDT;
+        pools[1] = CURVE_CRVUSD_USDT;
+        IStandardPool[] memory poolInterfaces = new IStandardPool[](2);
+        poolInterfaces[0] = curveStableSwap;
+        poolInterfaces[1] = curveStableSwap;
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.Duplicate.selector);
+
+        registry.addPools(pools, poolInterfaces);
+    }
+
+    function testAddPools() external {
+        address msgSender = registry.owner();
+        address[] memory pools = new address[](4);
+        pools[0] = CURVE_CRVUSD_USDT;
+        pools[1] = CURVE_CRVUSD_USDC;
+        pools[2] = UNISWAP_USDC_ETH;
+        pools[3] = UNISWAP_USDT_ETH;
+        IStandardPool[] memory poolInterfaces = new IStandardPool[](4);
+        poolInterfaces[0] = curveStableSwap;
+        poolInterfaces[1] = curveStableSwap;
+        poolInterfaces[2] = uniswapV3Fee500;
+        poolInterfaces[3] = uniswapV3Fee500;
+
+        vm.startPrank(msgSender);
+
+        for (uint256 i = 0; i < pools.length; ++i) {
+            vm.expectEmit(true, false, false, true, address(registry));
+
+            emit AddPool(pools[i], poolInterfaces[i].tokens(pools[i]));
+        }
+
+        registry.addPools(pools, poolInterfaces);
+
+        vm.stopPrank();
+
+        for (uint256 i = 0; i < pools.length; ++i) {
+            address pool = pools[i];
+            IStandardPool poolInterface = poolInterfaces[i];
+
+            assertEq(
+                address(poolInterface),
+                address(registry.poolInterfaces(pool))
+            );
+
+            address[] memory tokens = poolInterface.tokens(pool);
+
+            for (uint256 j = 0; j < tokens.length; ++j) {
+                assertEq(tokens[j], registry.poolTokens(pool, j));
+            }
+        }
+    }
 }

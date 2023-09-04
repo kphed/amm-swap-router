@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 interface IUniswapV3 {
@@ -43,16 +42,11 @@ contract UniswapV3Fee500 {
         address pool,
         uint256 inputTokenIndex,
         uint256 outputTokenIndex
-    )
-        internal
-        view
-        returns (address inputToken, address outputToken, bool zeroForOne)
-    {
+    ) internal view returns (address inputToken, address outputToken) {
         address token0 = IUniswapV3(pool).token0();
         address token1 = IUniswapV3(pool).token1();
         inputToken = (inputTokenIndex == 0 ? token0 : token1);
         outputToken = (outputTokenIndex == 1 ? token1 : token0);
-        zeroForOne = inputToken < outputToken;
     }
 
     function tokens(
@@ -68,17 +62,13 @@ contract UniswapV3Fee500 {
     function quoteTokenOutput(
         address pool,
         uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
+        uint256,
         uint256 inputTokenAmount
     ) external view returns (uint256) {
-        (, , bool zeroForOne) = _computeTokenData(
-            pool,
-            inputTokenIndex,
-            outputTokenIndex
-        );
+        bool zeroForOne = inputTokenIndex == 0 ? true : false;
         (int256 amount0, int256 amount1) = QUOTER.quote(
             pool,
-            zeroForOne,
+            inputTokenIndex == 0 ? true : false,
             int256(inputTokenAmount),
             zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
         );
@@ -89,14 +79,10 @@ contract UniswapV3Fee500 {
     function quoteTokenInput(
         address pool,
         uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
+        uint256,
         uint256 outputTokenAmount
     ) external view returns (uint256 inputTokenAmount) {
-        (, , bool zeroForOne) = _computeTokenData(
-            pool,
-            inputTokenIndex,
-            outputTokenIndex
-        );
+        bool zeroForOne = inputTokenIndex == 0 ? true : false;
         (int256 amount0, int256 amount1) = QUOTER.quote(
             pool,
             zeroForOne,
@@ -116,11 +102,12 @@ contract UniswapV3Fee500 {
         // Enables us to validate the caller of `uniswapV3SwapCallback`.
         _callbackPool = pool;
 
-        (address inputToken, , bool zeroForOne) = _computeTokenData(
+        (address inputToken, ) = _computeTokenData(
             pool,
             inputTokenIndex,
             outputTokenIndex
         );
+        bool zeroForOne = inputTokenIndex == 0 ? true : false;
         (int256 amount0, int256 amount1) = IUniswapV3(pool).swap(
             msg.sender,
             zeroForOne,

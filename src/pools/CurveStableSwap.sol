@@ -2,7 +2,6 @@
 pragma solidity 0.8.19;
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 import {Solarray} from "solarray/Solarray.sol";
 
 interface ICurveStableSwap {
@@ -31,7 +30,6 @@ interface ICurveStableSwap {
 
 contract CurveStableSwap {
     using SafeTransferLib for address;
-    using SafeCastLib for int256;
     using Solarray for address[];
 
     function tokens(
@@ -61,8 +59,8 @@ contract CurveStableSwap {
     ) external view returns (uint256) {
         return
             ICurveStableSwap(pool).get_dy(
-                int256(inputTokenIndex).toInt128(),
-                int256(outputTokenIndex).toInt128(),
+                int48(int256(inputTokenIndex)),
+                int48(int256(outputTokenIndex)),
                 inputTokenAmount
             );
     }
@@ -75,8 +73,8 @@ contract CurveStableSwap {
     ) external view returns (uint256) {
         return
             ICurveStableSwap(pool).get_dx(
-                int256(inputTokenIndex).toInt128(),
-                int256(outputTokenIndex).toInt128(),
+                int48(int256(inputTokenIndex)),
+                int48(int256(outputTokenIndex)),
                 outputTokenAmount
             );
     }
@@ -93,8 +91,8 @@ contract CurveStableSwap {
 
         return
             _pool.exchange(
-                int256(inputTokenIndex).toInt128(),
-                int256(outputTokenIndex).toInt128(),
+                int128(int256(inputTokenIndex)),
+                int128(int256(outputTokenIndex)),
                 inputTokenAmount,
                 1,
                 msg.sender

@@ -38,22 +38,20 @@ contract UniswapV3Fee500 {
 
     error UnauthorizedCaller();
 
-    function _computeTokenData(
+    function _encodeInputToken(
         address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex
-    ) internal view returns (address inputToken, address outputToken) {
+        uint256 inputTokenIndex
+    ) internal view returns (bytes memory) {
         address token0 = IUniswapV3(pool).token0();
         address token1 = IUniswapV3(pool).token1();
-        inputToken = (inputTokenIndex == 0 ? token0 : token1);
-        outputToken = (outputTokenIndex == 1 ? token1 : token0);
+
+        return abi.encode(inputTokenIndex == 0 ? token0 : token1);
     }
 
     function tokens(
         address pool
     ) external view returns (address[] memory _tokens) {
         IUniswapV3 _pool = IUniswapV3(pool);
-
         _tokens = new address[](2);
         _tokens[0] = _pool.token0();
         _tokens[1] = _pool.token1();
@@ -81,7 +79,7 @@ contract UniswapV3Fee500 {
         uint256 inputTokenIndex,
         uint256,
         uint256 outputTokenAmount
-    ) external view returns (uint256 inputTokenAmount) {
+    ) external view returns (uint256) {
         bool zeroForOne = inputTokenIndex == 0 ? true : false;
         (int256 amount0, int256 amount1) = QUOTER.quote(
             pool,
@@ -96,28 +94,20 @@ contract UniswapV3Fee500 {
     function swap(
         address pool,
         uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
+        uint256,
         uint256 inputTokenAmount
     ) external returns (uint256) {
         // Enables us to validate the caller of `uniswapV3SwapCallback`.
         _callbackPool = pool;
 
-        (address inputToken, ) = _computeTokenData(
-            pool,
-            inputTokenIndex,
-            outputTokenIndex
-        );
         bool zeroForOne = inputTokenIndex == 0 ? true : false;
         (int256 amount0, int256 amount1) = IUniswapV3(pool).swap(
             msg.sender,
             zeroForOne,
             int256(inputTokenAmount),
             zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO,
-            abi.encode(inputToken)
+            _encodeInputToken(pool, inputTokenIndex)
         );
-
-        // Delete for a gas refund.
-        delete _callbackPool;
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);
     }
@@ -131,13 +121,10 @@ contract UniswapV3Fee500 {
 
         address inputToken = abi.decode(data, (address));
 
-        if (amount0Delta > 0) {
+        if (amount0Delta != 0) {
             inputToken.safeTransfer(msg.sender, uint256(amount0Delta));
-        } else if (amount1Delta > 0) {
+        } else if (amount1Delta != 0) {
             inputToken.safeTransfer(msg.sender, uint256(amount1Delta));
-        } else {
-            // if both are not gt 0, both must be 0.
-            assert(amount0Delta == 0 && amount1Delta == 0);
         }
     }
 }

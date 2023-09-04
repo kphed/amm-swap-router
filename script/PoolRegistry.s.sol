@@ -13,8 +13,6 @@ contract PoolRegistryScript is Script {
         0x390f3595bCa2Df7d23783dFd126427CCeb997BF4;
     address public constant CURVE_CRVUSD_USDC =
         0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E;
-    address public constant CURVE_CRVUSD_ETH_CRV =
-        0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14;
     address public constant CURVE_USDT_WBTC_ETH =
         0xf5f5B97624542D72A9E06f04804Bf81baA15e2B4;
     address public constant CURVE_USDC_WBTC_ETH =
@@ -47,9 +45,6 @@ contract PoolRegistryScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        IStandardPool curveCryptoV2 = IStandardPool(
-            address(new CurveCryptoV2())
-        );
         IStandardPool curveStableSwap = IStandardPool(
             address(new CurveStableSwap())
         );
@@ -58,60 +53,50 @@ contract PoolRegistryScript is Script {
         );
         PoolRegistry registry = new PoolRegistry(vm.envAddress("OWNER"));
 
-        address[] memory pools = new address[](7);
-        IStandardPool[] memory poolInterfaces = new IStandardPool[](7);
+        address[] memory pools = new address[](4);
+        IStandardPool[] memory poolInterfaces = new IStandardPool[](4);
         pools[0] = CURVE_CRVUSD_USDT;
         pools[1] = CURVE_CRVUSD_USDC;
-        pools[2] = CURVE_CRVUSD_ETH_CRV;
-        pools[3] = CURVE_USDT_WBTC_ETH;
-        pools[4] = CURVE_USDC_WBTC_ETH;
-        pools[5] = UNISWAP_USDC_ETH;
-        pools[6] = UNISWAP_USDT_ETH;
+        pools[2] = UNISWAP_USDC_ETH;
+        pools[3] = UNISWAP_USDT_ETH;
         poolInterfaces[0] = curveStableSwap;
         poolInterfaces[1] = curveStableSwap;
-        poolInterfaces[2] = curveCryptoV2;
-        poolInterfaces[3] = curveCryptoV2;
-        poolInterfaces[4] = curveCryptoV2;
-        poolInterfaces[5] = uniswapV3Fee500;
-        poolInterfaces[6] = uniswapV3Fee500;
-        bytes32 crvUSDETH = _hashTokenPair(CRVUSD, WETH);
-        bytes32 ethCRVUSD = _hashTokenPair(WETH, CRVUSD);
-        bytes32[] memory crvUSDETHPath1 = new bytes32[](2);
-        bytes32[] memory crvUSDETHPath2 = new bytes32[](2);
-        bytes32[] memory crvUSDETHPath3 = new bytes32[](2);
-        bytes32[] memory ethCRVUSDPath1 = new bytes32[](2);
-        bytes32[] memory ethCRVUSDPath2 = new bytes32[](2);
-        bytes32[] memory ethCRVUSDPath3 = new bytes32[](2);
-        crvUSDETHPath1[0] = _encodePath(CURVE_CRVUSD_USDC, 1, 0);
-        crvUSDETHPath1[1] = _encodePath(CURVE_USDC_WBTC_ETH, 0, 2);
-        crvUSDETHPath2[0] = _encodePath(CURVE_CRVUSD_USDT, 1, 0);
-        crvUSDETHPath2[1] = _encodePath(UNISWAP_USDT_ETH, 1, 0);
-        crvUSDETHPath3[0] = _encodePath(CURVE_CRVUSD_USDC, 1, 0);
-        crvUSDETHPath3[1] = _encodePath(UNISWAP_USDC_ETH, 0, 1);
-        ethCRVUSDPath1[0] = _encodePath(CURVE_USDC_WBTC_ETH, 2, 0);
-        ethCRVUSDPath1[1] = _encodePath(CURVE_CRVUSD_USDC, 0, 1);
-        ethCRVUSDPath2[0] = _encodePath(UNISWAP_USDT_ETH, 0, 1);
-        ethCRVUSDPath2[1] = _encodePath(CURVE_CRVUSD_USDT, 0, 1);
-        ethCRVUSDPath3[0] = _encodePath(UNISWAP_USDC_ETH, 1, 0);
-        ethCRVUSDPath3[1] = _encodePath(CURVE_CRVUSD_USDC, 0, 1);
-
-        bytes32[] memory tokenPairs = new bytes32[](6);
-        tokenPairs[0] = crvUSDETH;
-        tokenPairs[1] = crvUSDETH;
-        tokenPairs[2] = crvUSDETH;
-        tokenPairs[3] = ethCRVUSD;
-        tokenPairs[4] = ethCRVUSD;
-        tokenPairs[5] = ethCRVUSD;
-        bytes32[][] memory paths = new bytes32[][](6);
-        paths[0] = crvUSDETHPath1;
-        paths[1] = crvUSDETHPath2;
-        paths[2] = crvUSDETHPath3;
-        paths[3] = ethCRVUSDPath1;
-        paths[4] = ethCRVUSDPath2;
-        paths[5] = ethCRVUSDPath3;
+        poolInterfaces[2] = uniswapV3Fee500;
+        poolInterfaces[3] = uniswapV3Fee500;
 
         registry.addPools(pools, poolInterfaces);
-        registry.addExchangePaths(tokenPairs, paths);
+
+        bytes32 crvUSDETH = _hashTokenPair(CRVUSD, WETH);
+        address[] memory crvUSDETHPools = new address[](2);
+        crvUSDETHPools[0] = CURVE_CRVUSD_USDC;
+        crvUSDETHPools[1] = UNISWAP_USDC_ETH;
+        uint48[2][] memory crvUSDETHTokenIndexes = new uint48[2][](2);
+        crvUSDETHTokenIndexes[0][0] = 1;
+        crvUSDETHTokenIndexes[0][1] = 0;
+        crvUSDETHTokenIndexes[1][0] = 0;
+        crvUSDETHTokenIndexes[1][1] = 1;
+
+        registry.addExchangePath(
+            crvUSDETH,
+            crvUSDETHPools,
+            crvUSDETHTokenIndexes
+        );
+
+        bytes32 ethCRVUSD = _hashTokenPair(WETH, CRVUSD);
+        address[] memory ethCRVUSDPools = new address[](2);
+        ethCRVUSDPools[0] = UNISWAP_USDC_ETH;
+        ethCRVUSDPools[1] = CURVE_CRVUSD_USDC;
+        uint48[2][] memory ethCRVUSDTokenIndexes = new uint48[2][](2);
+        ethCRVUSDTokenIndexes[0][0] = 0;
+        ethCRVUSDTokenIndexes[0][1] = 1;
+        ethCRVUSDTokenIndexes[1][0] = 1;
+        ethCRVUSDTokenIndexes[1][1] = 0;
+
+        registry.addExchangePath(
+            ethCRVUSD,
+            ethCRVUSDPools,
+            ethCRVUSDTokenIndexes
+        );
 
         vm.stopBroadcast();
     }

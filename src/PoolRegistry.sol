@@ -11,7 +11,6 @@ contract PoolRegistry is Ownable {
     using LinkedList for LinkedList.List;
     using SafeTransferLib for address;
     using Solarray for address[];
-    using Solarray for uint256[];
 
     struct ExchangePaths {
         uint256 nextIndex;
@@ -29,10 +28,7 @@ contract PoolRegistry is Ownable {
     mapping(bytes32 tokenPair => ExchangePaths paths) private _exchangePaths;
 
     event AddPool(address indexed pool, address[] tokens);
-    event AddExchangePath(
-        bytes32 indexed tokenPair,
-        uint256 indexed newPathIndex
-    );
+    event AddExchangePath(bytes32 indexed tokenPair);
 
     error Duplicate();
     error InsufficientOutput();
@@ -41,6 +37,15 @@ contract PoolRegistry is Ownable {
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
+    }
+
+    function _encodePath(
+        address pool,
+        uint48 inputTokenIndex,
+        uint48 outputTokenIndex
+    ) private pure returns (bytes32) {
+        return
+            bytes32(abi.encodePacked(pool, inputTokenIndex, outputTokenIndex));
     }
 
     function _decodePath(
@@ -67,15 +72,13 @@ contract PoolRegistry is Ownable {
         returns (
             uint256 nextIndex,
             address[][] memory pools,
-            uint256[][] memory inputTokenIndexes,
-            uint256[][] memory outputTokenIndexes
+            uint256[2][] memory tokenIndexes
         )
     {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         nextIndex = exchangePaths.nextIndex;
         pools = new address[][](nextIndex);
-        inputTokenIndexes = new uint256[][](nextIndex);
-        outputTokenIndexes = new uint256[][](nextIndex);
+        tokenIndexes = new uint256[2][](nextIndex);
 
         for (uint256 i = 0; i < nextIndex; ++i) {
             LinkedList.List storage list = exchangePaths.paths[i];
@@ -88,8 +91,8 @@ contract PoolRegistry is Ownable {
                     uint256 outputTokenIndex
                 ) = _decodePath(listKey);
                 pools[i] = pools[i].append(pool);
-                inputTokenIndexes[i] = inputTokenIndexes[i].append(inputTokenIndex);
-                outputTokenIndexes[i] = outputTokenIndexes[i].append(outputTokenIndex);
+                tokenIndexes[i][0] = inputTokenIndex;
+                tokenIndexes[i][1] = outputTokenIndex;
                 listKey = list.elements[listKey].nextKey;
             }
         }
@@ -267,27 +270,22 @@ contract PoolRegistry is Ownable {
 
     function addExchangePath(
         bytes32 tokenPair,
-        bytes32[] calldata newPath
+        address[] calldata pools,
+        uint48[2][] calldata tokenIndexes
     ) public onlyOwner {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
-        uint256 newPathLength = newPath.length;
-        uint256 newPathIndex = exchangePaths.nextIndex;
         LinkedList.List storage exchangePathsList = exchangePaths.paths[
-            newPathIndex
+            exchangePaths.nextIndex
         ];
+        uint256 poolsLength = pools.length;
 
         unchecked {
             ++exchangePaths.nextIndex;
-            bytes32 newPathItem;
 
-            for (uint256 i = 0; i < newPathLength; ++i) {
-                newPathItem = newPath[i];
-
-                (
-                    address pool,
-                    uint48 inputTokenIndex,
-                    uint48 outputTokenIndex
-                ) = _decodePath(newPathItem);
+            for (uint256 i = 0; i < poolsLength; ++i) {
+                address pool = pools[i];
+                uint48 inputTokenIndex = tokenIndexes[i][0];
+                uint48 outputTokenIndex = tokenIndexes[i][1];
 
                 // Throws if the token indexes are invalid (e.g. pool not set, or token index invalid).
                 if (poolTokens[pool][inputTokenIndex] == address(0))
@@ -299,25 +297,12 @@ contract PoolRegistry is Ownable {
                 if (inputTokenIndex == outputTokenIndex)
                     revert PoolTokensIdentical();
 
-                exchangePathsList.push(newPathItem);
+                exchangePathsList.push(
+                    _encodePath(pool, inputTokenIndex, outputTokenIndex)
+                );
             }
         }
 
-        emit AddExchangePath(tokenPair, newPathIndex);
-    }
-
-    function addExchangePaths(
-        bytes32[] calldata tokenPairs,
-        bytes32[][] calldata newPaths
-    ) external onlyOwner {
-        uint256 tokenPairsLength = tokenPairs.length;
-
-        for (uint256 i = 0; i < tokenPairsLength; ) {
-            addExchangePath(tokenPairs[i], newPaths[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
+        emit AddExchangePath(tokenPair);
     }
 }

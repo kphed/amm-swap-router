@@ -34,6 +34,8 @@ contract PoolRegistry is Ownable {
     error InsufficientOutput();
     error PoolTokenNotSet();
     error PoolTokensIdentical();
+    error UnauthorizedCaller();
+    error FailedSwap(bytes);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -204,19 +206,20 @@ contract PoolRegistry is Ownable {
                 uint256 inputTokenIndex,
                 uint256 outputTokenIndex
             ) = _decodePath(listKey);
-            IStandardPool poolInterface = poolInterfaces[pool];
+            (bool success, bytes memory data) = address(poolInterfaces[pool])
+                .delegatecall(
+                    abi.encodeWithSelector(
+                        IStandardPool.swap.selector,
+                        pool,
+                        inputTokenIndex,
+                        outputTokenIndex,
+                        outputTokenAmount
+                    )
+                );
 
-            poolTokens[pool][inputTokenIndex].safeTransfer(
-                address(poolInterface),
-                outputTokenAmount
-            );
+            if (!success) revert FailedSwap(data);
 
-            outputTokenAmount = poolInterface.swap(
-                pool,
-                inputTokenIndex,
-                outputTokenIndex,
-                outputTokenAmount
-            );
+            outputTokenAmount = abi.decode(data, (uint256));
             listKey = list.elements[listKey].nextKey;
         }
 
@@ -246,6 +249,9 @@ contract PoolRegistry is Ownable {
 
         unchecked {
             for (uint256 i = 0; i < tokensLength; ++i) {
+                // Pre-approve pools to spend tokens in order to save gas.
+                tokens[i].safeApprove(pool, type(uint256).max);
+
                 poolTokens[pool][i] = tokens[i];
             }
         }
@@ -304,5 +310,22 @@ contract PoolRegistry is Ownable {
         }
 
         emit AddExchangePath(tokenPair);
+    }
+
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        if (address(poolInterfaces[msg.sender]) == address(0))
+            revert UnauthorizedCaller();
+
+        address inputToken = abi.decode(data, (address));
+
+        if (amount0Delta != 0) {
+            inputToken.safeTransfer(msg.sender, uint256(amount0Delta));
+        } else if (amount1Delta != 0) {
+            inputToken.safeTransfer(msg.sender, uint256(amount1Delta));
+        }
     }
 }

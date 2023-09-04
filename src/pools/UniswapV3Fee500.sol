@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-
 interface IUniswapV3 {
     function token0() external view returns (address);
 
@@ -25,18 +23,12 @@ interface IUniswapV3 {
 }
 
 contract UniswapV3Fee500 {
-    using SafeTransferLib for address;
-
     IUniswapV3 private constant QUOTER =
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
     uint160 private constant MIN_SQRT_RATIO = 4295128740;
     uint160 private constant MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970341;
     uint24 private constant FEE = 500;
-
-    address private _callbackPool;
-
-    error UnauthorizedCaller();
 
     function _encodeInputToken(
         address pool,
@@ -97,12 +89,9 @@ contract UniswapV3Fee500 {
         uint256,
         uint256 inputTokenAmount
     ) external returns (uint256) {
-        // Enables us to validate the caller of `uniswapV3SwapCallback`.
-        _callbackPool = pool;
-
         bool zeroForOne = inputTokenIndex == 0 ? true : false;
         (int256 amount0, int256 amount1) = IUniswapV3(pool).swap(
-            msg.sender,
+            address(this),
             zeroForOne,
             int256(inputTokenAmount),
             zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO,
@@ -110,21 +99,5 @@ contract UniswapV3Fee500 {
         );
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);
-    }
-
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata data
-    ) external {
-        if (msg.sender != _callbackPool) revert UnauthorizedCaller();
-
-        address inputToken = abi.decode(data, (address));
-
-        if (amount0Delta != 0) {
-            inputToken.safeTransfer(msg.sender, uint256(amount0Delta));
-        } else if (amount1Delta != 0) {
-            inputToken.safeTransfer(msg.sender, uint256(amount1Delta));
-        }
     }
 }

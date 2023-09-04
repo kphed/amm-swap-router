@@ -36,6 +36,7 @@ contract PoolRegistry is Ownable {
 
     error Duplicate();
     error InsufficientOutput();
+    error PoolTokenNotSet();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -268,9 +269,24 @@ contract PoolRegistry is Ownable {
 
         unchecked {
             ++exchangePaths.nextIndex;
+            bytes32 newPathItem;
 
             for (uint256 i = 0; i < newPathLength; ++i) {
-                exchangePathsList.push(newPath[i]);
+                newPathItem = newPath[i];
+
+                (
+                    address pool,
+                    uint48 inputTokenIndex,
+                    uint48 outputTokenIndex
+                ) = _decodePath(newPathItem);
+
+                // Throws if the token indexes are invalid (e.g. pool not set, or token index invalid).
+                if (poolTokens[pool][inputTokenIndex] == address(0))
+                    revert PoolTokenNotSet();
+                if (poolTokens[pool][outputTokenIndex] == address(0))
+                    revert PoolTokenNotSet();
+
+                exchangePathsList.push(newPathItem);
             }
         }
 

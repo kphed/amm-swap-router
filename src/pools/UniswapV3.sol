@@ -22,13 +22,12 @@ interface IUniswapV3 {
     ) external returns (int256 amount0, int256 amount1);
 }
 
-contract UniswapV3Fee500 {
-    IUniswapV3 private constant QUOTER =
+contract UniswapV3 {
+    IUniswapV3 private constant _QUOTER =
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
-    uint160 private constant MIN_SQRT_RATIO = 4295128740;
-    uint160 private constant MAX_SQRT_RATIO =
+    uint160 private constant _MIN_SQRT_RATIO = 4295128740;
+    uint160 private constant _MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970341;
-    uint24 private constant FEE = 500;
 
     function _encodeInputToken(
         address pool,
@@ -56,11 +55,11 @@ contract UniswapV3Fee500 {
         uint256 inputTokenAmount
     ) external view returns (uint256) {
         bool zeroForOne = inputTokenIndex == 0 ? true : false;
-        (int256 amount0, int256 amount1) = QUOTER.quote(
+        (int256 amount0, int256 amount1) = _QUOTER.quote(
             pool,
             inputTokenIndex == 0 ? true : false,
             int256(inputTokenAmount),
-            zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
+            zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
         );
 
         return uint256(zeroForOne ? -amount1 : -amount0);
@@ -73,11 +72,11 @@ contract UniswapV3Fee500 {
         uint256 outputTokenAmount
     ) external view returns (uint256) {
         bool zeroForOne = inputTokenIndex == 0 ? true : false;
-        (int256 amount0, int256 amount1) = QUOTER.quote(
+        (int256 amount0, int256 amount1) = _QUOTER.quote(
             pool,
             zeroForOne,
             -int256(outputTokenAmount),
-            zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
+            zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
         );
 
         return uint256(zeroForOne ? amount0 : amount1);
@@ -94,7 +93,7 @@ contract UniswapV3Fee500 {
             address(this),
             zeroForOne,
             int256(inputTokenAmount),
-            zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO,
+            zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO,
             _encodeInputToken(pool, inputTokenIndex)
         );
 

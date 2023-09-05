@@ -129,6 +129,9 @@ contract PoolRegistry is Ownable {
                         outputTokenIndex,
                         swapAmount
                     );
+
+                    if (listKey == list.tail) break;
+
                     listKey = list.elements[listKey].nextKey;
                 }
 
@@ -166,6 +169,9 @@ contract PoolRegistry is Ownable {
                         outputTokenIndex,
                         swapAmount
                     );
+
+                    if (listKey == list.head) break;
+
                     listKey = list.elements[listKey].previousKey;
                 }
 
@@ -213,6 +219,9 @@ contract PoolRegistry is Ownable {
             if (!success) revert FailedSwap(data);
 
             swapAmount = abi.decode(data, (uint256));
+
+            if (listKey == list.tail) break;
+
             listKey = list.elements[listKey].nextKey;
         }
 

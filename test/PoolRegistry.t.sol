@@ -7,7 +7,7 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {PoolRegistry} from "src/PoolRegistry.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 import {ICurveStableSwap, CurveStableSwap} from "src/pools/CurveStableSwap.sol";
-import {UniswapV3Fee500} from "src/pools/UniswapV3Fee500.sol";
+import {UniswapV3} from "src/pools/UniswapV3.sol";
 
 interface ICurveStablecoin {
     function mint(address to, uint256 amount) external;
@@ -32,8 +32,8 @@ contract PoolRegistryTest is Test {
         0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
     IStandardPool public immutable curveStableSwap =
         IStandardPool(address(new CurveStableSwap()));
-    IStandardPool public immutable uniswapV3Fee500 =
-        IStandardPool(address(new UniswapV3Fee500()));
+    IStandardPool public immutable uniswapV3 =
+        IStandardPool(address(new UniswapV3()));
     PoolRegistry public immutable registry = new PoolRegistry(address(this));
 
     event AddPool(address indexed pool, address[] tokens);
@@ -70,8 +70,8 @@ contract PoolRegistryTest is Test {
     function _setUpPools() private {
         registry.addPool(CURVE_CRVUSD_USDT, curveStableSwap);
         registry.addPool(CURVE_CRVUSD_USDC, curveStableSwap);
-        registry.addPool(UNISWAP_USDC_ETH, uniswapV3Fee500);
-        registry.addPool(UNISWAP_USDT_ETH, uniswapV3Fee500);
+        registry.addPool(UNISWAP_USDC_ETH, uniswapV3);
+        registry.addPool(UNISWAP_USDT_ETH, uniswapV3);
 
         bytes32 crvUSDETH = _hashTokenPair(CRVUSD, WETH);
         address[] memory pools = new address[](2);
@@ -164,7 +164,7 @@ contract PoolRegistryTest is Test {
         pools[1] = UNISWAP_USDT_ETH;
         IStandardPool[] memory poolInterfaces = new IStandardPool[](2);
         poolInterfaces[0] = curveStableSwap;
-        poolInterfaces[1] = uniswapV3Fee500;
+        poolInterfaces[1] = uniswapV3;
 
         assertTrue(unauthorizedMsgSender != registry.owner());
 
@@ -199,8 +199,8 @@ contract PoolRegistryTest is Test {
         IStandardPool[] memory poolInterfaces = new IStandardPool[](4);
         poolInterfaces[0] = curveStableSwap;
         poolInterfaces[1] = curveStableSwap;
-        poolInterfaces[2] = uniswapV3Fee500;
-        poolInterfaces[3] = uniswapV3Fee500;
+        poolInterfaces[2] = uniswapV3;
+        poolInterfaces[3] = uniswapV3;
 
         vm.startPrank(msgSender);
 
@@ -351,7 +351,7 @@ contract PoolRegistryTest is Test {
         pools[1] = UNISWAP_USDC_ETH;
         IStandardPool[] memory poolInterfaces = new IStandardPool[](2);
         poolInterfaces[0] = curveStableSwap;
-        poolInterfaces[1] = uniswapV3Fee500;
+        poolInterfaces[1] = uniswapV3;
 
         registry.addPools(pools, poolInterfaces);
 

@@ -6,7 +6,7 @@ import {PoolRegistry} from "src/PoolRegistry.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 import {CurveCryptoV2} from "src/pools/CurveCryptoV2.sol";
 import {CurveStableSwap} from "src/pools/CurveStableSwap.sol";
-import {UniswapV3Fee500} from "src/pools/UniswapV3Fee500.sol";
+import {UniswapV3} from "src/pools/UniswapV3.sol";
 
 contract PoolRegistryScript is Script {
     address public constant CURVE_CRVUSD_USDT =
@@ -48,9 +48,7 @@ contract PoolRegistryScript is Script {
         IStandardPool curveStableSwap = IStandardPool(
             address(new CurveStableSwap())
         );
-        IStandardPool uniswapV3Fee500 = IStandardPool(
-            address(new UniswapV3Fee500())
-        );
+        IStandardPool uniswapV3 = IStandardPool(address(new UniswapV3()));
         PoolRegistry registry = new PoolRegistry(vm.envAddress("OWNER"));
 
         address[] memory pools = new address[](4);
@@ -61,8 +59,8 @@ contract PoolRegistryScript is Script {
         pools[3] = UNISWAP_USDT_ETH;
         poolInterfaces[0] = curveStableSwap;
         poolInterfaces[1] = curveStableSwap;
-        poolInterfaces[2] = uniswapV3Fee500;
-        poolInterfaces[3] = uniswapV3Fee500;
+        poolInterfaces[2] = uniswapV3;
+        poolInterfaces[3] = uniswapV3;
 
         registry.addPools(pools, poolInterfaces);
 
@@ -87,10 +85,10 @@ contract PoolRegistryScript is Script {
         ethCRVUSDPools[0] = UNISWAP_USDC_ETH;
         ethCRVUSDPools[1] = CURVE_CRVUSD_USDC;
         uint48[2][] memory ethCRVUSDTokenIndexes = new uint48[2][](2);
-        ethCRVUSDTokenIndexes[0][0] = 0;
-        ethCRVUSDTokenIndexes[0][1] = 1;
-        ethCRVUSDTokenIndexes[1][0] = 1;
-        ethCRVUSDTokenIndexes[1][1] = 0;
+        ethCRVUSDTokenIndexes[0][0] = 1;
+        ethCRVUSDTokenIndexes[0][1] = 0;
+        ethCRVUSDTokenIndexes[1][0] = 0;
+        ethCRVUSDTokenIndexes[1][1] = 1;
 
         registry.addExchangePath(
             ethCRVUSD,

@@ -102,7 +102,7 @@ contract PoolRegistry is Ownable {
 
     function getOutputAmount(
         bytes32 tokenPair,
-        uint256 inputTokenAmount
+        uint256 swapAmount
     )
         external
         view
@@ -114,7 +114,6 @@ contract PoolRegistry is Ownable {
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                uint256 transientQuote = inputTokenAmount;
                 LinkedList.List storage list = exchangePaths.paths[i];
                 bytes32 listKey = list.head;
 
@@ -124,19 +123,19 @@ contract PoolRegistry is Ownable {
                         uint48 inputTokenIndex,
                         uint48 outputTokenIndex
                     ) = _decodePath(listKey);
-                    transientQuote = poolInterfaces[pool].quoteTokenOutput(
+                    swapAmount = poolInterfaces[pool].quoteTokenOutput(
                         pool,
                         inputTokenIndex,
                         outputTokenIndex,
-                        transientQuote
+                        swapAmount
                     );
                     listKey = list.elements[listKey].nextKey;
                 }
 
                 // Compare the latest output amount against the current best output amount.
-                if (transientQuote > bestOutputAmount) {
+                if (swapAmount > bestOutputAmount) {
                     bestOutputIndex = i;
-                    bestOutputAmount = transientQuote;
+                    bestOutputAmount = swapAmount;
                 }
             }
         }
@@ -144,7 +143,7 @@ contract PoolRegistry is Ownable {
 
     function getInputAmount(
         bytes32 tokenPair,
-        uint256 outputTokenAmount
+        uint256 swapAmount
     ) external view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
         ExchangePaths storage exchangePaths = _exchangePaths[tokenPair];
         uint256 exchangePathsLength = exchangePaths.nextIndex;
@@ -152,7 +151,6 @@ contract PoolRegistry is Ownable {
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                uint256 transientQuote = outputTokenAmount;
                 LinkedList.List storage list = exchangePaths.paths[i];
                 bytes32 listKey = list.tail;
 
@@ -162,20 +160,20 @@ contract PoolRegistry is Ownable {
                         uint48 inputTokenIndex,
                         uint48 outputTokenIndex
                     ) = _decodePath(listKey);
-                    transientQuote = poolInterfaces[pool].quoteTokenInput(
+                    swapAmount = poolInterfaces[pool].quoteTokenInput(
                         pool,
                         inputTokenIndex,
                         outputTokenIndex,
-                        transientQuote
+                        swapAmount
                     );
                     listKey = list.elements[listKey].previousKey;
                 }
 
                 // Compare the latest input amount against the current best input amount.
                 // If the best input amount is unset, set it.
-                if (transientQuote < bestInputAmount || bestInputAmount == 0) {
+                if (swapAmount < bestInputAmount || bestInputAmount == 0) {
                     bestInputIndex = i;
-                    bestInputAmount = transientQuote;
+                    bestInputAmount = swapAmount;
                 }
             }
         }
@@ -184,21 +182,16 @@ contract PoolRegistry is Ownable {
     function swap(
         address inputToken,
         address outputToken,
-        uint256 inputTokenAmount,
+        uint256 swapAmount,
         uint256 minOutputTokenAmount,
         uint256 pathIndex
-    ) external returns (uint256 outputTokenAmount) {
-        inputToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputTokenAmount
-        );
+    ) external returns (uint256) {
+        inputToken.safeTransferFrom(msg.sender, address(this), swapAmount);
 
         LinkedList.List storage list = _exchangePaths[
             keccak256(abi.encodePacked(inputToken, outputToken))
         ].paths[pathIndex];
         bytes32 listKey = list.head;
-        outputTokenAmount = inputTokenAmount;
 
         while (listKey != bytes32(0)) {
             (
@@ -213,20 +206,21 @@ contract PoolRegistry is Ownable {
                         pool,
                         inputTokenIndex,
                         outputTokenIndex,
-                        outputTokenAmount
+                        swapAmount
                     )
                 );
 
             if (!success) revert FailedSwap(data);
 
-            outputTokenAmount = abi.decode(data, (uint256));
+            swapAmount = abi.decode(data, (uint256));
             listKey = list.elements[listKey].nextKey;
         }
 
-        if (outputTokenAmount < minOutputTokenAmount)
-            revert InsufficientOutput();
+        if (swapAmount < minOutputTokenAmount) revert InsufficientOutput();
 
-        outputToken.safeTransfer(msg.sender, outputTokenAmount);
+        outputToken.safeTransfer(msg.sender, swapAmount);
+
+        return swapAmount;
     }
 
     /**

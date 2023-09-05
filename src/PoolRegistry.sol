@@ -3,10 +3,12 @@ pragma solidity 0.8.19;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 contract PoolRegistry is Ownable {
     using SafeTransferLib for address;
+    using FixedPointMathLib for uint256;
 
     uint256 private constant _FEE_ADDED = 10_001;
     uint256 private constant _FEE_DEDUCTED = 9_999;
@@ -24,6 +26,10 @@ contract PoolRegistry is Ownable {
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
+    }
+
+    function withdrawERC20(address token, uint256 amount) external onlyOwner {
+        token.safeTransfer(msg.sender, amount);
     }
 
     function getOutputAmount(
@@ -48,13 +54,16 @@ contract PoolRegistry is Ownable {
                     amount = IStandardPool(paths[j]).quoteTokenOutput(amount);
                 }
 
-                amount = (amount * _FEE_DEDUCTED) / _FEE_BASE;
-
                 if (amount > bestOutputAmount) {
                     bestOutputIndex = i;
                     bestOutputAmount = amount;
                 }
             }
+
+            bestOutputAmount = bestOutputAmount.mulDiv(
+                _FEE_DEDUCTED,
+                _FEE_BASE
+            );
         }
     }
 
@@ -64,7 +73,7 @@ contract PoolRegistry is Ownable {
     ) external view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
         address[][] memory _exchangePaths = exchangePaths[tokenPair];
         uint256 exchangePathsLength = _exchangePaths.length;
-        swapAmount = (swapAmount * _FEE_ADDED) / _FEE_BASE;
+        swapAmount = swapAmount.mulDiv(_FEE_ADDED, _FEE_BASE);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
@@ -92,11 +101,15 @@ contract PoolRegistry is Ownable {
     function swap(
         address inputToken,
         address outputToken,
-        uint256 swapAmount,
+        uint256 inputTokenAmount,
         uint256 minOutputTokenAmount,
         uint256 pathIndex
     ) external returns (uint256) {
-        inputToken.safeTransferFrom(msg.sender, address(this), swapAmount);
+        inputToken.safeTransferFrom(
+            msg.sender,
+            address(this),
+            inputTokenAmount
+        );
 
         address[] memory paths = exchangePaths[
             keccak256(abi.encodePacked(inputToken, outputToken))
@@ -108,24 +121,27 @@ contract PoolRegistry is Ownable {
                 (bool success, bytes memory data) = paths[i].delegatecall(
                     abi.encodeWithSelector(
                         IStandardPool.swap.selector,
-                        swapAmount
+                        inputTokenAmount
                     )
                 );
 
                 if (!success) revert FailedSwap(data);
 
-                swapAmount = abi.decode(data, (uint256));
+                inputTokenAmount = abi.decode(data, (uint256));
             }
 
-            if (swapAmount < minOutputTokenAmount) revert InsufficientOutput();
+            if (inputTokenAmount < minOutputTokenAmount)
+                revert InsufficientOutput();
+
+            inputTokenAmount = inputTokenAmount.mulDiv(
+                _FEE_DEDUCTED,
+                _FEE_BASE
+            );
         }
 
-        // The swap amount has the fee deducted prior to be transferred.
-        swapAmount = (swapAmount * _FEE_DEDUCTED) / _FEE_BASE;
+        outputToken.safeTransfer(msg.sender, inputTokenAmount);
 
-        outputToken.safeTransfer(msg.sender, swapAmount);
-
-        return swapAmount;
+        return inputTokenAmount;
     }
 
     function addExchangePath(

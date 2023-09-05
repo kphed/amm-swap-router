@@ -8,6 +8,10 @@ import {IStandardPool} from "src/pools/IStandardPool.sol";
 contract PoolRegistry is Ownable {
     using SafeTransferLib for address;
 
+    uint256 private constant _FEE_ADDED = 10_001;
+    uint256 private constant _FEE_DEDUCTED = 9_999;
+    uint256 private constant _FEE_BASE = 10_000;
+
     mapping(address pool => bool isSet) public pools;
     mapping(bytes32 tokenPair => address[][] path) public exchangePaths;
 
@@ -32,24 +36,24 @@ contract PoolRegistry is Ownable {
     {
         address[][] memory _exchangePaths = exchangePaths[tokenPair];
         uint256 exchangePathsLength = _exchangePaths.length;
-        uint256 amount = swapAmount;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
                 address[] memory paths = _exchangePaths[i];
                 uint256 pathsLength = paths.length;
+                uint256 amount = swapAmount;
 
                 for (uint256 j = 0; j < pathsLength; ++j) {
                     amount = IStandardPool(paths[j]).quoteTokenOutput(amount);
                 }
 
+                amount = (amount * _FEE_DEDUCTED) / _FEE_BASE;
+
                 if (amount > bestOutputAmount) {
                     bestOutputIndex = i;
                     bestOutputAmount = amount;
                 }
-
-                amount = swapAmount;
             }
         }
     }
@@ -60,13 +64,14 @@ contract PoolRegistry is Ownable {
     ) external view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
         address[][] memory _exchangePaths = exchangePaths[tokenPair];
         uint256 exchangePathsLength = _exchangePaths.length;
-        uint256 amount = swapAmount;
+        swapAmount = (swapAmount * _FEE_ADDED) / _FEE_BASE;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
                 address[] memory paths = _exchangePaths[i];
                 uint256 pathsLength = paths.length;
+                uint256 amount = swapAmount;
 
                 while (pathsLength != 0) {
                     --pathsLength;
@@ -80,8 +85,6 @@ contract PoolRegistry is Ownable {
                     bestInputIndex = i;
                     bestInputAmount = amount;
                 }
-
-                amount = swapAmount;
             }
         }
     }
@@ -113,9 +116,12 @@ contract PoolRegistry is Ownable {
 
                 swapAmount = abi.decode(data, (uint256));
             }
+
+            if (swapAmount < minOutputTokenAmount) revert InsufficientOutput();
         }
 
-        if (swapAmount < minOutputTokenAmount) revert InsufficientOutput();
+        // The swap amount has the fee deducted prior to be transferred.
+        swapAmount = (swapAmount * _FEE_DEDUCTED) / _FEE_BASE;
 
         outputToken.safeTransfer(msg.sender, swapAmount);
 

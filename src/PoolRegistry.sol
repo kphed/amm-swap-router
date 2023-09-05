@@ -16,6 +16,7 @@ contract PoolRegistry is Ownable {
     error InsufficientOutput();
     error UnauthorizedCaller();
     error FailedSwap(bytes);
+    error RemovalIndexOOB();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -149,6 +150,24 @@ contract PoolRegistry is Ownable {
         }
 
         emit AddExchangePath(tokenPair);
+    }
+
+    function removeExchangePath(
+        bytes32 tokenPair,
+        uint256 removalIndex
+    ) external onlyOwner {
+        address[][] storage _exchangePaths = exchangePaths[tokenPair];
+        uint256 lastIndex = _exchangePaths.length - 1;
+
+        // Throw if the removal index is for an element that doesn't exist.
+        if (removalIndex > lastIndex) revert RemovalIndexOOB();
+
+        if (removalIndex != lastIndex) {
+            // Set the last element to the removal index (the original will be removed).
+            _exchangePaths[removalIndex] = _exchangePaths[lastIndex];
+        }
+
+        _exchangePaths.pop();
     }
 
     function uniswapV3SwapCallback(

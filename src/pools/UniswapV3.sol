@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
+import {Clone} from "solady/utils/Clone.sol";
+import {IStandardPool} from "src/pools/IStandardPoolV2.sol";
+
 interface IUniswapV3 {
     function token0() external view returns (address);
 
@@ -22,79 +25,95 @@ interface IUniswapV3 {
     ) external returns (int256 amount0, int256 amount1);
 }
 
-contract UniswapV3 {
+contract UniswapV3 is Clone, IStandardPool {
+    uint256 private constant _OFFSET_POOL = 0;
+    uint256 private constant _OFFSET_INPUT_TOKEN = 20;
+    uint256 private constant _OFFSET_ZERO_FOR_ONE = 40;
+    uint256 private constant _OFFSET_ZERO_FOR_ONE_LENGTH = 32;
+    uint256 private constant _OFFSET_SQRT_PRICE_LIMIT = 72;
+
+    // keccak256(abi.encodePacked(true)).
+    bytes32 private constant _TRUE =
+        0x5fe7f977e71dba2ea1a68e21057beebb9be2ac30c6410aa38d4f3fbe41dcffd2;
+
     IUniswapV3 private constant _QUOTER =
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
     uint160 private constant _MIN_SQRT_RATIO = 4295128740;
     uint160 private constant _MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970341;
 
-    function _encodeInputToken(
-        address pool,
-        uint256 inputTokenIndex
-    ) internal view returns (bytes memory) {
-        address token0 = IUniswapV3(pool).token0();
-        address token1 = IUniswapV3(pool).token1();
+    bool private _initialized = false;
+    address[] private _tokens;
 
-        return abi.encode(inputTokenIndex == 0 ? token0 : token1);
+    error AlreadyInitialized();
+
+    function _pool() private pure returns (address) {
+        return _getArgAddress(_OFFSET_POOL);
     }
 
-    function tokens(
-        address pool
-    ) external view returns (address[] memory _tokens) {
-        IUniswapV3 _pool = IUniswapV3(pool);
-        _tokens = new address[](2);
-        _tokens[0] = _pool.token0();
-        _tokens[1] = _pool.token1();
+    function _encodedInputToken() private pure returns (bytes memory) {
+        return abi.encode(_getArgAddress(_OFFSET_INPUT_TOKEN));
     }
 
-    function quoteTokenOutput(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256,
-        uint256 inputTokenAmount
-    ) external view returns (uint256) {
-        bool zeroForOne = inputTokenIndex == 0 ? true : false;
+    function _zeroForOne() private pure returns (bool) {
+        return
+            bytes32(
+                _getArgBytes(_OFFSET_ZERO_FOR_ONE, _OFFSET_ZERO_FOR_ONE_LENGTH)
+            ) == _TRUE
+                ? true
+                : false;
+    }
+
+    function _sqrtPriceLimit() private pure returns (uint160) {
+        return _getArgUint160(_OFFSET_SQRT_PRICE_LIMIT);
+    }
+
+    function initialize() external {
+        if (_initialized) revert AlreadyInitialized();
+
+        _initialized = true;
+        IUniswapV3 pool = IUniswapV3(_pool());
+
+        _tokens.push(pool.token0());
+        _tokens.push(pool.token1());
+    }
+
+    function tokens() external view returns (address[] memory) {
+        return _tokens;
+    }
+
+    function quoteTokenOutput(uint256 amount) external view returns (uint256) {
+        bool zeroForOne = _zeroForOne();
         (int256 amount0, int256 amount1) = _QUOTER.quote(
-            pool,
-            inputTokenIndex == 0 ? true : false,
-            int256(inputTokenAmount),
-            zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
+            _pool(),
+            zeroForOne,
+            int256(amount),
+            _sqrtPriceLimit()
         );
 
         return uint256(zeroForOne ? -amount1 : -amount0);
     }
 
-    function quoteTokenInput(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256,
-        uint256 outputTokenAmount
-    ) external view returns (uint256) {
-        bool zeroForOne = inputTokenIndex == 0 ? true : false;
+    function quoteTokenInput(uint256 amount) external view returns (uint256) {
+        bool zeroForOne = _zeroForOne();
         (int256 amount0, int256 amount1) = _QUOTER.quote(
-            pool,
+            _pool(),
             zeroForOne,
-            -int256(outputTokenAmount),
-            zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
+            -int256(amount),
+            _sqrtPriceLimit()
         );
 
         return uint256(zeroForOne ? amount0 : amount1);
     }
 
-    function swap(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256,
-        uint256 inputTokenAmount
-    ) external returns (uint256) {
-        bool zeroForOne = inputTokenIndex == 0 ? true : false;
-        (int256 amount0, int256 amount1) = IUniswapV3(pool).swap(
+    function swap(uint256 amount) external returns (uint256) {
+        bool zeroForOne = _zeroForOne();
+        (int256 amount0, int256 amount1) = IUniswapV3(_pool()).swap(
             address(this),
             zeroForOne,
-            int256(inputTokenAmount),
-            zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO,
-            _encodeInputToken(pool, inputTokenIndex)
+            int256(amount),
+            _sqrtPriceLimit(),
+            _encodedInputToken()
         );
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);

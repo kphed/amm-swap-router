@@ -2,6 +2,8 @@
 pragma solidity 0.8.19;
 
 interface IStandardPool {
+    function pool() external pure returns (address);
+
     function tokens() external view returns (address[] memory);
 
     function quoteTokenOutput(uint256 amount) external view returns (uint256);

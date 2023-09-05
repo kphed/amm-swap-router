@@ -61,10 +61,10 @@ contract CurveStableSwap is Clone, IStandardPool {
 
         _initialized = true;
         uint256 index = 0;
-        ICurveStableSwap pool = ICurveStableSwap(_pool());
+        ICurveStableSwap curveStableSwapPool = ICurveStableSwap(_pool());
 
         while (true) {
-            try pool.coins(index) returns (address token) {
+            try curveStableSwapPool.coins(index) returns (address token) {
                 _tokens.push(token);
 
                 unchecked {
@@ -74,6 +74,10 @@ contract CurveStableSwap is Clone, IStandardPool {
                 return;
             }
         }
+    }
+
+    function pool() external pure returns (address) {
+        return _getArgAddress(_OFFSET_POOL);
     }
 
     function tokens() external view returns (address[] memory) {

@@ -72,10 +72,14 @@ contract UniswapV3 is Clone, IStandardPool {
         if (_initialized) revert AlreadyInitialized();
 
         _initialized = true;
-        IUniswapV3 pool = IUniswapV3(_pool());
+        IUniswapV3 uniswapV3Pool = IUniswapV3(_pool());
 
-        _tokens.push(pool.token0());
-        _tokens.push(pool.token1());
+        _tokens.push(uniswapV3Pool.token0());
+        _tokens.push(uniswapV3Pool.token1());
+    }
+
+    function pool() external pure returns (address) {
+        return _getArgAddress(_OFFSET_POOL);
     }
 
     function tokens() external view returns (address[] memory) {

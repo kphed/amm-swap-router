@@ -2,26 +2,11 @@
 pragma solidity 0.8.19;
 
 interface IStandardPool {
-    function tokens(address pool) external view returns (address[] memory);
+    function tokens() external view returns (address[] memory);
 
-    function quoteTokenOutput(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 inputTokenAmount
-    ) external view returns (uint256);
+    function quoteTokenOutput(uint256 amount) external view returns (uint256);
 
-    function quoteTokenInput(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 outputTokenAmount
-    ) external view returns (uint256);
+    function quoteTokenInput(uint256 amount) external view returns (uint256);
 
-    function swap(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 inputTokenAmount
-    ) external returns (uint256);
+    function swap(uint256 amount) external returns (uint256);
 }

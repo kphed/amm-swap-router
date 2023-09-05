@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {Clone} from "solady/utils/Clone.sol";
-import {IStandardPool} from "src/pools/IStandardPoolV2.sol";
+import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 interface IUniswapV3 {
     function token0() external view returns (address);

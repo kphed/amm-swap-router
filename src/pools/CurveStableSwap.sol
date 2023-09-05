@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
+import {Clone} from "solady/utils/Clone.sol";
 import {Solarray} from "solarray/Solarray.sol";
+import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 interface ICurveStableSwap {
     function get_dy(
@@ -27,68 +29,72 @@ interface ICurveStableSwap {
     function coins(uint256 index) external view returns (address);
 }
 
-contract CurveStableSwap {
+contract CurveStableSwap is Clone, IStandardPool {
     using Solarray for address[];
 
-    function tokens(
-        address pool
-    ) external view returns (address[] memory _tokens) {
+    uint256 private constant _OFFSET_POOL = 0;
+    uint256 private constant _OFFSET_INPUT_TOKEN_INDEX = 20;
+    uint256 private constant _OFFSET_OUTPUT_TOKEN_INDEX = 26;
+
+    // Slippage should be handled by the caller.
+    uint256 private constant _MIN_SWAP_AMOUNT = 1;
+
+    bool private _initialized = false;
+    address[] private _tokens;
+
+    error AlreadyInitialized();
+
+    function _pool() private pure returns (ICurveStableSwap) {
+        return ICurveStableSwap(_getArgAddress(_OFFSET_POOL));
+    }
+
+    function _inputTokenIndex() private pure returns (int48) {
+        return int48(_getArgUint48(_OFFSET_INPUT_TOKEN_INDEX));
+    }
+
+    function _outputTokenIndex() private pure returns (int48) {
+        return int48(_getArgUint48(_OFFSET_OUTPUT_TOKEN_INDEX));
+    }
+
+    function initialize() external {
+        if (_initialized) revert AlreadyInitialized();
+
+        _initialized = true;
         uint256 index = 0;
-        ICurveStableSwap _pool = ICurveStableSwap(pool);
+        ICurveStableSwap pool = ICurveStableSwap(_pool());
 
         while (true) {
-            try _pool.coins(index) returns (address token) {
-                _tokens = _tokens.append(token);
+            try pool.coins(index) returns (address token) {
+                _tokens.push(token);
 
                 unchecked {
                     ++index;
                 }
             } catch {
-                return _tokens;
+                return;
             }
         }
     }
 
-    function quoteTokenOutput(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 inputTokenAmount
-    ) external view returns (uint256) {
-        return
-            ICurveStableSwap(pool).get_dy(
-                int48(int256(inputTokenIndex)),
-                int48(int256(outputTokenIndex)),
-                inputTokenAmount
-            );
+    function tokens() external view returns (address[] memory) {
+        return _tokens;
     }
 
-    function quoteTokenInput(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 outputTokenAmount
-    ) external view returns (uint256) {
-        return
-            ICurveStableSwap(pool).get_dx(
-                int48(int256(inputTokenIndex)),
-                int48(int256(outputTokenIndex)),
-                outputTokenAmount
-            );
+    function quoteTokenOutput(uint256 amount) external view returns (uint256) {
+        return _pool().get_dy(_inputTokenIndex(), _outputTokenIndex(), amount);
     }
 
-    function swap(
-        address pool,
-        uint256 inputTokenIndex,
-        uint256 outputTokenIndex,
-        uint256 inputTokenAmount
-    ) external returns (uint256) {
+    function quoteTokenInput(uint256 amount) external view returns (uint256) {
+        return _pool().get_dx(_inputTokenIndex(), _outputTokenIndex(), amount);
+    }
+
+    function swap(uint256 amount) external returns (uint256) {
         return
-            ICurveStableSwap(pool).exchange(
-                int128(int256(inputTokenIndex)),
-                int128(int256(outputTokenIndex)),
-                inputTokenAmount,
-                1,
+            _pool().exchange(
+                _inputTokenIndex(),
+                _outputTokenIndex(),
+                amount,
+                _MIN_SWAP_AMOUNT,
                 address(this)
             );
     }

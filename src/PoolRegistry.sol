@@ -67,18 +67,18 @@ contract PoolRegistry is Ownable {
                     amount = IStandardPool(pool).quoteTokenOutput(amount);
 
                     if (listKey == list.tail) {
+                        // Compare the latest output amount against the current best output amount.
+                        if (amount > bestOutputAmount) {
+                            bestOutputIndex = i;
+                            bestOutputAmount = amount;
+                        }
+
                         amount = swapAmount;
 
                         break;
                     }
 
                     listKey = list.elements[listKey].nextKey;
-                }
-
-                // Compare the latest output amount against the current best output amount.
-                if (amount > bestOutputAmount) {
-                    bestOutputIndex = i;
-                    bestOutputAmount = amount;
                 }
             }
         }
@@ -103,19 +103,19 @@ contract PoolRegistry is Ownable {
                     amount = IStandardPool(pool).quoteTokenInput(amount);
 
                     if (listKey == list.head) {
+                        // Compare the latest input amount against the current best input amount.
+                        // If the best input amount is unset, set it.
+                        if (amount < bestInputAmount || bestInputAmount == 0) {
+                            bestInputIndex = i;
+                            bestInputAmount = amount;
+                        }
+
                         amount = swapAmount;
 
                         break;
                     }
 
                     listKey = list.elements[listKey].previousKey;
-                }
-
-                // Compare the latest input amount against the current best input amount.
-                // If the best input amount is unset, set it.
-                if (amount < bestInputAmount || bestInputAmount == 0) {
-                    bestInputIndex = i;
-                    bestInputAmount = amount;
                 }
             }
         }
@@ -195,9 +195,9 @@ contract PoolRegistry is Ownable {
     ) external {
         address inputToken = abi.decode(data, (address));
 
-        if (amount0Delta != 0) {
+        if (amount0Delta > 0) {
             inputToken.safeTransfer(msg.sender, uint256(amount0Delta));
-        } else if (amount1Delta != 0) {
+        } else if (amount1Delta > 0) {
             inputToken.safeTransfer(msg.sender, uint256(amount1Delta));
         }
     }

@@ -51,6 +51,7 @@ contract PoolRegistryTest is Test {
         address indexed pool,
         address[] tokens
     );
+    event Transfer(address indexed from, address indexed to, uint256 amount);
 
     receive() external payable {}
 
@@ -384,5 +385,55 @@ contract PoolRegistryTest is Test {
             // The old last exchange path and the current last exchange path should not be equal.
             assertTrue(lastExchangePath[i] != exchangePaths[lastIndex][i]);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             uniswapV3SwapCallback
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotUniswapV3SwapCallbackUnauthorized() external {
+        address msgSender = address(this);
+        int256 amount0Delta = 0;
+        int256 amount1Delta = 0;
+        bytes memory data = abi.encode(CRVUSD);
+
+        assertEq(0, registry.pools(msgSender));
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.UnauthorizedCaller.selector);
+
+        registry.uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function testUniswapV3SwapCallback() external {
+        _setUpPools();
+
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        IStandardPool poolInterface = IStandardPool(
+            registry.getExchangePaths(tokenPair)[0][0]
+        );
+        address msgSender = poolInterface.pool();
+        int256 amount0Delta = 1e18;
+        int256 amount1Delta = 0;
+        bytes memory data = abi.encode(CRVUSD);
+
+        _mintCRVUSD(address(registry), uint256(amount0Delta));
+
+        uint256 poolCRVUSDBalanceBefore = CRVUSD.balanceOf(msgSender);
+
+        assertEq(uint256(amount0Delta), CRVUSD.balanceOf(address(registry)));
+        assertTrue(0 != registry.pools(msgSender));
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(CRVUSD));
+
+        emit Transfer(address(registry), msgSender, uint256(amount0Delta));
+
+        registry.uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+
+        assertEq(
+            poolCRVUSDBalanceBefore + uint256(amount0Delta),
+            CRVUSD.balanceOf(msgSender)
+        );
     }
 }

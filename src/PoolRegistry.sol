@@ -17,12 +17,15 @@ contract PoolRegistry is Ownable {
     mapping(address pool => uint256 tokenCount) public pools;
     mapping(bytes32 tokenPair => address[][] path) public exchangePaths;
 
-    event AddExchangePath(bytes32 indexed tokenPair);
-    event RemoveExchangePath(bytes32 indexed tokenPair, uint256 removeIndex);
     event WithdrawERC20(
         address indexed token,
         address indexed recipient,
         uint256 amount
+    );
+    event AddExchangePath(bytes32 indexed tokenPair, uint256 indexed addIndex);
+    event RemoveExchangePath(
+        bytes32 indexed tokenPair,
+        uint256 indexed removeIndex
     );
 
     error InsufficientOutput();
@@ -30,6 +33,8 @@ contract PoolRegistry is Ownable {
     error FailedSwap(bytes);
     error RemovalIndexOOB();
     error PoolDoesNotExist();
+    error InvalidTokenPair();
+    error EmptyArray();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -66,12 +71,18 @@ contract PoolRegistry is Ownable {
         bytes32 tokenPair,
         address[] calldata interfaces
     ) external onlyOwner {
+        if (tokenPair == bytes32(0)) revert InvalidTokenPair();
+
+        uint256 interfacesLength = interfaces.length;
+
+        if (interfacesLength == 0) revert EmptyArray();
+
         address[][] storage _exchangePaths = exchangePaths[tokenPair];
+        uint256 addIndex = _exchangePaths.length;
 
         _exchangePaths.push();
 
-        address[] storage paths = _exchangePaths[_exchangePaths.length];
-        uint256 interfacesLength = interfaces.length;
+        address[] storage paths = _exchangePaths[addIndex];
 
         unchecked {
             for (uint256 i = 0; i < interfacesLength; ++i) {
@@ -89,7 +100,7 @@ contract PoolRegistry is Ownable {
             }
         }
 
-        emit AddExchangePath(tokenPair);
+        emit AddExchangePath(tokenPair, addIndex);
     }
 
     function removeExchangePath(
@@ -110,6 +121,12 @@ contract PoolRegistry is Ownable {
         _exchangePaths.pop();
 
         emit RemoveExchangePath(tokenPair, removeIndex);
+    }
+
+    function getExchangePaths(
+        bytes32 tokenPair
+    ) external view returns (address[][] memory) {
+        return exchangePaths[tokenPair];
     }
 
     function getOutputAmount(

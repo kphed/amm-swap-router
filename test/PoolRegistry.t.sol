@@ -35,7 +35,16 @@ contract PoolRegistryTest is Test {
         new CurveStableSwapFactory();
     PoolRegistry public immutable registry = new PoolRegistry(address(this));
 
-    event AddExchangePath(bytes32 indexed tokenPair);
+    event WithdrawERC20(
+        address indexed token,
+        address indexed recipient,
+        uint256 amount
+    );
+    event AddExchangePath(bytes32 indexed tokenPair, uint256 indexed addIndex);
+    event RemoveExchangePath(
+        bytes32 indexed tokenPair,
+        uint256 indexed removeIndex
+    );
 
     receive() external payable {}
 
@@ -63,5 +72,88 @@ contract PoolRegistryTest is Test {
         pools[1] = uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true);
 
         registry.addExchangePath(crvUSDETH, pools);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             addExchangePath
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotAddExchangePathUnauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        address[] memory interfaces = new address[](2);
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.addExchangePath(tokenPair, interfaces);
+    }
+
+    function testCannotAddExchangePathInvalidTokenPair() external {
+        address msgSender = registry.owner();
+        bytes32 invalidTokenPair = bytes32(0);
+        address[] memory interfaces = new address[](2);
+
+        assertEq(bytes32(0), invalidTokenPair);
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.InvalidTokenPair.selector);
+
+        registry.addExchangePath(invalidTokenPair, interfaces);
+    }
+
+    function testCannotAddExchangePathEmptyArray() external {
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        address[] memory emptyInterfaces = new address[](0);
+
+        assertEq(0, emptyInterfaces.length);
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.EmptyArray.selector);
+
+        registry.addExchangePath(tokenPair, emptyInterfaces);
+    }
+
+    function testAddExchangePath() external {
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        address[] memory interfaces = new address[](2);
+        interfaces[0] = curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0);
+        interfaces[1] = uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true);
+        uint256 addIndex = registry.getExchangePaths(tokenPair).length;
+
+        assertEq(0, addIndex);
+        assertEq(0, registry.pools(CURVE_CRVUSD_USDC));
+        assertEq(0, registry.pools(UNISWAP_USDC_ETH));
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit AddExchangePath(tokenPair, addIndex);
+
+        registry.addExchangePath(tokenPair, interfaces);
+
+        address[][] memory exchangePaths = registry.getExchangePaths(tokenPair);
+
+        assertEq(1, exchangePaths.length);
+        assertEq(
+            IStandardPool(interfaces[0]).tokens().length,
+            registry.pools(CURVE_CRVUSD_USDC)
+        );
+        assertEq(
+            IStandardPool(interfaces[1]).tokens().length,
+            registry.pools(UNISWAP_USDC_ETH)
+        );
+
+        address[] memory _interfaces = exchangePaths[addIndex];
+
+        assertEq(interfaces.length, _interfaces.length);
+
+        for (uint256 i = 0; i < interfaces.length; ++i) {
+            assertEq(interfaces[i], _interfaces[i]);
+        }
     }
 }

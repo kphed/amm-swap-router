@@ -2,6 +2,7 @@
 pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
+import {ERC20} from "solady/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {PoolRegistry} from "src/PoolRegistry.sol";
@@ -124,6 +125,9 @@ contract PoolRegistryTest is Test {
         interfaces[0] = curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0);
         interfaces[1] = uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true);
         uint256 addIndex = registry.getExchangePaths(tokenPair).length;
+        address[] memory curveCRVUSDUSDCTokens = IStandardPool(interfaces[0])
+            .tokens();
+        address[] memory uniswapUSDCETH = IStandardPool(interfaces[1]).tokens();
 
         assertEq(0, addIndex);
         assertEq(0, registry.pools(CURVE_CRVUSD_USDC));
@@ -140,13 +144,10 @@ contract PoolRegistryTest is Test {
 
         assertEq(1, exchangePaths.length);
         assertEq(
-            IStandardPool(interfaces[0]).tokens().length,
+            curveCRVUSDUSDCTokens.length,
             registry.pools(CURVE_CRVUSD_USDC)
         );
-        assertEq(
-            IStandardPool(interfaces[1]).tokens().length,
-            registry.pools(UNISWAP_USDC_ETH)
-        );
+        assertEq(uniswapUSDCETH.length, registry.pools(UNISWAP_USDC_ETH));
 
         address[] memory _interfaces = exchangePaths[addIndex];
 
@@ -154,6 +155,26 @@ contract PoolRegistryTest is Test {
 
         for (uint256 i = 0; i < interfaces.length; ++i) {
             assertEq(interfaces[i], _interfaces[i]);
+        }
+
+        for (uint256 i = 0; i < curveCRVUSDUSDCTokens.length; ++i) {
+            assertEq(
+                type(uint256).max,
+                ERC20(curveCRVUSDUSDCTokens[i]).allowance(
+                    address(registry),
+                    CURVE_CRVUSD_USDC
+                )
+            );
+        }
+
+        for (uint256 i = 0; i < uniswapUSDCETH.length; ++i) {
+            assertEq(
+                type(uint256).max,
+                ERC20(uniswapUSDCETH[i]).allowance(
+                    address(registry),
+                    UNISWAP_USDC_ETH
+                )
+            );
         }
     }
 }

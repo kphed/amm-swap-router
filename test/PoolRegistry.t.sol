@@ -46,6 +46,11 @@ contract PoolRegistryTest is Test {
         bytes32 indexed tokenPair,
         uint256 indexed removeIndex
     );
+    event ApprovePool(
+        IStandardPool indexed poolInterface,
+        address indexed pool,
+        address[] tokens
+    );
 
     receive() external payable {}
 
@@ -78,6 +83,96 @@ contract PoolRegistryTest is Test {
         interfaces[1] = uniswapV3Factory.create(UNISWAP_USDT_ETH, USDT, false);
 
         registry.addExchangePath(crvUSDETH, interfaces);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             withdrawERC20
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotWithdrawERC20Unauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        address token = CRVUSD;
+        address recipient = address(this);
+        uint256 amount = 1e18;
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.withdrawERC20(token, recipient, amount);
+    }
+
+    function testWithdrawERC20() external {
+        address msgSender = registry.owner();
+        address token = CRVUSD;
+        address recipient = address(this);
+        uint256 amount = 1e18;
+
+        _mintCRVUSD(address(registry), amount);
+
+        assertEq(0, CRVUSD.balanceOf(address(this)));
+        assertEq(amount, CRVUSD.balanceOf(address(registry)));
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit WithdrawERC20(token, recipient, amount);
+
+        registry.withdrawERC20(token, recipient, amount);
+
+        assertEq(amount, CRVUSD.balanceOf(address(this)));
+        assertEq(0, CRVUSD.balanceOf(address(registry)));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             approvePool
+    //////////////////////////////////////////////////////////////*/
+
+    function testApprovePool() external {
+        _setUpPools();
+
+        address pool = CURVE_CRVUSD_USDC;
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        IStandardPool poolInterface = IStandardPool(
+            registry.getExchangePaths(tokenPair)[0][0]
+        );
+
+        assertEq(pool, poolInterface.pool());
+
+        address[] memory tokens = poolInterface.tokens();
+
+        vm.startPrank(address(registry));
+
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            assertEq(
+                type(uint256).max,
+                ERC20(tokens[i]).allowance(address(registry), pool)
+            );
+
+            // Set the registry's allowances to zero for the pool's tokens.
+            tokens[i].safeApproveWithRetry(pool, 0);
+
+            assertEq(0, ERC20(tokens[i]).allowance(address(registry), pool));
+        }
+
+        vm.stopPrank();
+
+        address msgSender = address(this);
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit ApprovePool(poolInterface, pool, tokens);
+
+        registry.approvePool(poolInterface);
+
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            assertEq(
+                type(uint256).max,
+                ERC20(tokens[i]).allowance(address(registry), pool)
+            );
+        }
     }
 
     /*//////////////////////////////////////////////////////////////

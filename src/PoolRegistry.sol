@@ -27,6 +27,11 @@ contract PoolRegistry is Ownable {
         bytes32 indexed tokenPair,
         uint256 indexed removeIndex
     );
+    event ApprovePool(
+        IStandardPool indexed poolInterface,
+        address indexed pool,
+        address[] tokens
+    );
 
     error InsufficientOutput();
     error UnauthorizedCaller();
@@ -48,23 +53,6 @@ contract PoolRegistry is Ownable {
         token.safeTransfer(recipient, amount);
 
         emit WithdrawERC20(token, recipient, amount);
-    }
-
-    function approvePool(IStandardPool poolInterface) external onlyOwner {
-        address[] memory tokens = IStandardPool(poolInterface).tokens();
-        address pool = IStandardPool(poolInterface).pool();
-
-        if (pools[pool] == 0) revert PoolDoesNotExist();
-
-        uint256 tokensLength = tokens.length;
-
-        for (uint256 i = 0; i < tokensLength; ) {
-            tokens[i].safeApproveWithRetry(pool, type(uint256).max);
-
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     function addExchangePath(
@@ -123,6 +111,71 @@ contract PoolRegistry is Ownable {
         _exchangePaths.pop();
 
         emit RemoveExchangePath(tokenPair, removeIndex);
+    }
+
+    function approvePool(IStandardPool poolInterface) external {
+        address[] memory tokens = poolInterface.tokens();
+        address pool = poolInterface.pool();
+
+        if (pools[pool] == 0) revert PoolDoesNotExist();
+
+        uint256 tokensLength = tokens.length;
+
+        for (uint256 i = 0; i < tokensLength; ) {
+            tokens[i].safeApproveWithRetry(pool, type(uint256).max);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit ApprovePool(poolInterface, pool, tokens);
+    }
+
+    function swap(
+        address inputToken,
+        address outputToken,
+        uint256 inputTokenAmount,
+        uint256 minOutputTokenAmount,
+        uint256 pathIndex
+    ) external returns (uint256) {
+        inputToken.safeTransferFrom(
+            msg.sender,
+            address(this),
+            inputTokenAmount
+        );
+
+        address[] memory paths = exchangePaths[
+            keccak256(abi.encodePacked(inputToken, outputToken))
+        ][pathIndex];
+        uint256 pathsLength = paths.length;
+
+        unchecked {
+            for (uint256 i = 0; i < pathsLength; ++i) {
+                (bool success, bytes memory data) = paths[i].delegatecall(
+                    abi.encodeWithSelector(
+                        IStandardPool.swap.selector,
+                        inputTokenAmount
+                    )
+                );
+
+                if (!success) revert FailedSwap(data);
+
+                inputTokenAmount = abi.decode(data, (uint256));
+            }
+
+            if (inputTokenAmount < minOutputTokenAmount)
+                revert InsufficientOutput();
+
+            inputTokenAmount = inputTokenAmount.mulDiv(
+                _FEE_DEDUCTED,
+                _FEE_BASE
+            );
+        }
+
+        outputToken.safeTransfer(msg.sender, inputTokenAmount);
+
+        return inputTokenAmount;
     }
 
     function getExchangePaths(
@@ -192,52 +245,6 @@ contract PoolRegistry is Ownable {
                 }
             }
         }
-    }
-
-    function swap(
-        address inputToken,
-        address outputToken,
-        uint256 inputTokenAmount,
-        uint256 minOutputTokenAmount,
-        uint256 pathIndex
-    ) external returns (uint256) {
-        inputToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputTokenAmount
-        );
-
-        address[] memory paths = exchangePaths[
-            keccak256(abi.encodePacked(inputToken, outputToken))
-        ][pathIndex];
-        uint256 pathsLength = paths.length;
-
-        unchecked {
-            for (uint256 i = 0; i < pathsLength; ++i) {
-                (bool success, bytes memory data) = paths[i].delegatecall(
-                    abi.encodeWithSelector(
-                        IStandardPool.swap.selector,
-                        inputTokenAmount
-                    )
-                );
-
-                if (!success) revert FailedSwap(data);
-
-                inputTokenAmount = abi.decode(data, (uint256));
-            }
-
-            if (inputTokenAmount < minOutputTokenAmount)
-                revert InsufficientOutput();
-
-            inputTokenAmount = inputTokenAmount.mulDiv(
-                _FEE_DEDUCTED,
-                _FEE_BASE
-            );
-        }
-
-        outputToken.safeTransfer(msg.sender, inputTokenAmount);
-
-        return inputTokenAmount;
     }
 
     function uniswapV3SwapCallback(

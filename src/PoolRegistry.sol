@@ -158,12 +158,9 @@ contract PoolRegistry is Ownable {
                     bestOutputAmount = amount;
                 }
             }
-
-            bestOutputAmount = bestOutputAmount.mulDiv(
-                _FEE_DEDUCTED,
-                _FEE_BASE
-            );
         }
+
+        bestOutputAmount = bestOutputAmount.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
     }
 
     function getInputAmount(

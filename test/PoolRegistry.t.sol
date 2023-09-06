@@ -68,11 +68,16 @@ contract PoolRegistryTest is Test {
      */
     function _setUpPools() private {
         bytes32 crvUSDETH = _hashTokenPair(CRVUSD, WETH);
-        address[] memory pools = new address[](2);
-        pools[0] = curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0);
-        pools[1] = uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true);
+        address[] memory interfaces = new address[](2);
+        interfaces[0] = curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0);
+        interfaces[1] = uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true);
 
-        registry.addExchangePath(crvUSDETH, pools);
+        registry.addExchangePath(crvUSDETH, interfaces);
+
+        interfaces[0] = curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1);
+        interfaces[1] = uniswapV3Factory.create(UNISWAP_USDT_ETH, USDT, false);
+
+        registry.addExchangePath(crvUSDETH, interfaces);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -175,6 +180,114 @@ contract PoolRegistryTest is Test {
                     UNISWAP_USDC_ETH
                 )
             );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             removeExchangePath
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotRemoveExchangePathUnauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        uint256 removeIndex = 0;
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.removeExchangePath(tokenPair, removeIndex);
+    }
+
+    function testCannotRemoveExchangePathInvalidTokenPair() external {
+        address msgSender = registry.owner();
+        bytes32 invalidTokenPair = bytes32(0);
+        uint256 removeIndex = 0;
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.InvalidTokenPair.selector);
+
+        registry.removeExchangePath(invalidTokenPair, removeIndex);
+    }
+
+    function testCannotRemoveExchangePathRemovalIndex() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        address[][] memory exchangePaths = registry.getExchangePaths(tokenPair);
+        uint256 invalidRemoveIndex = exchangePaths.length + 1;
+
+        assertGt(invalidRemoveIndex, exchangePaths.length);
+
+        vm.prank(msgSender);
+        vm.expectRevert(PoolRegistry.RemoveIndexOOB.selector);
+
+        registry.removeExchangePath(tokenPair, invalidRemoveIndex);
+    }
+
+    function testRemoveExchangePath() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        address[][] memory exchangePaths = registry.getExchangePaths(tokenPair);
+        uint256 removeIndex = 0;
+        uint256 lastIndex = exchangePaths.length - 1;
+        address[] memory lastExchangePath = exchangePaths[lastIndex];
+
+        assertTrue(removeIndex != lastIndex);
+        assertEq(2, exchangePaths.length);
+
+        for (uint256 i = 0; i < exchangePaths.length; ++i) {
+            assertTrue(exchangePaths[removeIndex][i] != lastExchangePath[i]);
+        }
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit RemoveExchangePath(tokenPair, removeIndex);
+
+        registry.removeExchangePath(tokenPair, removeIndex);
+
+        exchangePaths = registry.getExchangePaths(tokenPair);
+
+        assertEq(1, exchangePaths.length);
+
+        for (uint256 i = 0; i < exchangePaths.length; ++i) {
+            // The last exchange path now has the same index as the removed index.
+            assertEq(exchangePaths[removeIndex][i], lastExchangePath[i]);
+        }
+    }
+
+    function testRemoveExchangePathLastIndex() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 tokenPair = _hashTokenPair(CRVUSD, WETH);
+        address[][] memory exchangePaths = registry.getExchangePaths(tokenPair);
+        uint256 lastIndex = exchangePaths.length - 1;
+        uint256 removeIndex = lastIndex;
+        address[] memory lastExchangePath = exchangePaths[lastIndex];
+
+        assertEq(2, exchangePaths.length);
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit RemoveExchangePath(tokenPair, removeIndex);
+
+        registry.removeExchangePath(tokenPair, removeIndex);
+
+        exchangePaths = registry.getExchangePaths(tokenPair);
+        lastIndex = exchangePaths.length - 1;
+
+        assertEq(1, exchangePaths.length);
+
+        for (uint256 i = 0; i < lastExchangePath.length; ++i) {
+            // The old last exchange path and the current last exchange path should not be equal.
+            assertTrue(lastExchangePath[i] != exchangePaths[lastIndex][i]);
         }
     }
 }

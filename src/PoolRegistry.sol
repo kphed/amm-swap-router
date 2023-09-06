@@ -31,7 +31,7 @@ contract PoolRegistry is Ownable {
     error InsufficientOutput();
     error UnauthorizedCaller();
     error FailedSwap(bytes);
-    error RemovalIndexOOB();
+    error RemoveIndexOOB();
     error PoolDoesNotExist();
     error InvalidTokenPair();
     error EmptyArray();
@@ -107,11 +107,13 @@ contract PoolRegistry is Ownable {
         bytes32 tokenPair,
         uint256 removeIndex
     ) external onlyOwner {
+        if (tokenPair == bytes32(0)) revert InvalidTokenPair();
+
         address[][] storage _exchangePaths = exchangePaths[tokenPair];
         uint256 lastIndex = _exchangePaths.length - 1;
 
         // Throw if the removal index is for an element that doesn't exist.
-        if (removeIndex > lastIndex) revert RemovalIndexOOB();
+        if (removeIndex > lastIndex) revert RemoveIndexOOB();
 
         if (removeIndex != lastIndex) {
             // Set the last element to the removal index (the original will be removed).

@@ -35,7 +35,7 @@ contract PoolRegistry is Ownable {
 
     error InsufficientOutput();
     error UnauthorizedCaller();
-    error FailedSwap(bytes);
+    error FailedSwap();
     error RemoveIndexOOB();
     error PoolDoesNotExist();
     error InvalidTokenPair();

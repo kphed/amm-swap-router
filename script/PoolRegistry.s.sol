@@ -23,15 +23,6 @@ contract PoolRegistryScript is Script {
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    function _encodePath(
-        address pool,
-        uint48 inputTokenIndex,
-        uint48 outputTokenIndex
-    ) private pure returns (bytes32) {
-        return
-            bytes32(abi.encodePacked(pool, inputTokenIndex, outputTokenIndex));
-    }
-
     function _hashTokenPair(
         address inputToken,
         address outputToken

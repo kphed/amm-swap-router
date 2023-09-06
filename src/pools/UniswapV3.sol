@@ -38,9 +38,6 @@ contract UniswapV3 is Clone, IStandardPool {
 
     IUniswapV3 private constant _QUOTER =
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
-    uint160 private constant _MIN_SQRT_RATIO = 4295128740;
-    uint160 private constant _MAX_SQRT_RATIO =
-        1461446703485210103287273052203988822378723970341;
 
     bool private _initialized = false;
     address[] private _tokens;

@@ -14,22 +14,102 @@ contract PoolRegistry is Ownable {
     uint256 private constant _FEE_DEDUCTED = 9_999;
     uint256 private constant _FEE_BASE = 10_000;
 
-    mapping(address pool => bool isSet) public pools;
+    mapping(address pool => uint256 tokenCount) public pools;
     mapping(bytes32 tokenPair => address[][] path) public exchangePaths;
 
     event AddExchangePath(bytes32 indexed tokenPair);
+    event RemoveExchangePath(bytes32 indexed tokenPair, uint256 removeIndex);
+    event WithdrawERC20(
+        address indexed token,
+        address indexed recipient,
+        uint256 amount
+    );
 
     error InsufficientOutput();
     error UnauthorizedCaller();
     error FailedSwap(bytes);
     error RemovalIndexOOB();
+    error PoolDoesNotExist();
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
     }
 
-    function withdrawERC20(address token, uint256 amount) external onlyOwner {
-        token.safeTransfer(msg.sender, amount);
+    function withdrawERC20(
+        address token,
+        address recipient,
+        uint256 amount
+    ) external onlyOwner {
+        token.safeTransfer(recipient, amount);
+
+        emit WithdrawERC20(token, recipient, amount);
+    }
+
+    function approvePool(IStandardPool poolInterface) external onlyOwner {
+        address[] memory tokens = IStandardPool(poolInterface).tokens();
+        address pool = IStandardPool(poolInterface).pool();
+
+        if (pools[pool] == 0) revert PoolDoesNotExist();
+
+        uint256 tokensLength = tokens.length;
+
+        for (uint256 i = 0; i < tokensLength; ) {
+            tokens[i].safeApproveWithRetry(pool, type(uint256).max);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function addExchangePath(
+        bytes32 tokenPair,
+        address[] calldata interfaces
+    ) external onlyOwner {
+        address[][] storage _exchangePaths = exchangePaths[tokenPair];
+
+        _exchangePaths.push();
+
+        address[] storage paths = _exchangePaths[_exchangePaths.length];
+        uint256 interfacesLength = interfaces.length;
+
+        unchecked {
+            for (uint256 i = 0; i < interfacesLength; ++i) {
+                address poolInterface = interfaces[i];
+                address[] memory tokens = IStandardPool(poolInterface).tokens();
+                address pool = IStandardPool(poolInterface).pool();
+                uint256 tokensLength = tokens.length;
+                pools[pool] = tokensLength;
+
+                for (uint256 j = 0; j < tokensLength; ++j) {
+                    tokens[j].safeApproveWithRetry(pool, type(uint256).max);
+                }
+
+                paths.push(poolInterface);
+            }
+        }
+
+        emit AddExchangePath(tokenPair);
+    }
+
+    function removeExchangePath(
+        bytes32 tokenPair,
+        uint256 removeIndex
+    ) external onlyOwner {
+        address[][] storage _exchangePaths = exchangePaths[tokenPair];
+        uint256 lastIndex = _exchangePaths.length - 1;
+
+        // Throw if the removal index is for an element that doesn't exist.
+        if (removeIndex > lastIndex) revert RemovalIndexOOB();
+
+        if (removeIndex != lastIndex) {
+            // Set the last element to the removal index (the original will be removed).
+            _exchangePaths[removeIndex] = _exchangePaths[lastIndex];
+        }
+
+        _exchangePaths.pop();
+
+        emit RemoveExchangePath(tokenPair, removeIndex);
     }
 
     function getOutputAmount(
@@ -144,60 +224,12 @@ contract PoolRegistry is Ownable {
         return inputTokenAmount;
     }
 
-    function addExchangePath(
-        bytes32 tokenPair,
-        address[] calldata interfaces
-    ) external onlyOwner {
-        address[][] storage _exchangePaths = exchangePaths[tokenPair];
-        uint256 exchangePathsLength = _exchangePaths.length;
-
-        _exchangePaths.push();
-
-        address[] storage paths = _exchangePaths[exchangePathsLength];
-        uint256 interfacesLength = interfaces.length;
-
-        unchecked {
-            for (uint256 i = 0; i < interfacesLength; ++i) {
-                address poolInterface = interfaces[i];
-                address[] memory tokens = IStandardPool(poolInterface).tokens();
-                address pool = IStandardPool(poolInterface).pool();
-                pools[pool] = true;
-
-                for (uint256 j = 0; j < tokens.length; ++j) {
-                    tokens[j].safeApproveWithRetry(pool, type(uint256).max);
-                }
-
-                paths.push(poolInterface);
-            }
-        }
-
-        emit AddExchangePath(tokenPair);
-    }
-
-    function removeExchangePath(
-        bytes32 tokenPair,
-        uint256 removalIndex
-    ) external onlyOwner {
-        address[][] storage _exchangePaths = exchangePaths[tokenPair];
-        uint256 lastIndex = _exchangePaths.length - 1;
-
-        // Throw if the removal index is for an element that doesn't exist.
-        if (removalIndex > lastIndex) revert RemovalIndexOOB();
-
-        if (removalIndex != lastIndex) {
-            // Set the last element to the removal index (the original will be removed).
-            _exchangePaths[removalIndex] = _exchangePaths[lastIndex];
-        }
-
-        _exchangePaths.pop();
-    }
-
     function uniswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
     ) external {
-        if (!pools[msg.sender]) revert UnauthorizedCaller();
+        if (pools[msg.sender] == 0) revert UnauthorizedCaller();
 
         address inputToken = abi.decode(data, (address));
 

@@ -10,7 +10,6 @@ contract PoolRegistry is Ownable {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
-    uint256 private constant _FEE_ADDED = 10_001;
     uint256 private constant _FEE_DEDUCTED = 9_999;
     uint256 private constant _FEE_BASE = 10_000;
 
@@ -159,18 +158,18 @@ contract PoolRegistry is Ownable {
                     )
                 );
 
-                if (!success) revert FailedSwap(data);
+                if (!success) revert FailedSwap();
 
                 inputTokenAmount = abi.decode(data, (uint256));
             }
-
-            if (inputTokenAmount < minOutputTokenAmount)
-                revert InsufficientOutput();
 
             inputTokenAmount = inputTokenAmount.mulDiv(
                 _FEE_DEDUCTED,
                 _FEE_BASE
             );
+
+            if (inputTokenAmount < minOutputTokenAmount)
+                revert InsufficientOutput();
         }
 
         outputToken.safeTransfer(msg.sender, inputTokenAmount);
@@ -222,7 +221,7 @@ contract PoolRegistry is Ownable {
     ) external view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
         address[][] memory _exchangePaths = exchangePaths[tokenPair];
         uint256 exchangePathsLength = _exchangePaths.length;
-        swapAmount = swapAmount.mulDiv(_FEE_ADDED, _FEE_BASE);
+        swapAmount = swapAmount.mulDiv(_FEE_BASE, _FEE_DEDUCTED);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {

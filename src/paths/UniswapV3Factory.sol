@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {LibClone} from "solady/utils/LibClone.sol";
-import {UniswapV3} from "src/pools/UniswapV3.sol";
+import {UniswapV3} from "src/paths/UniswapV3.sol";
 
 contract UniswapV3Factory {
     uint160 private constant _MIN_SQRT_RATIO = 4295128740;

@@ -2,14 +2,14 @@
 pragma solidity 0.8.19;
 
 import "forge-std/Script.sol";
-import {PoolRegistry} from "src/PoolRegistry.sol";
-import {IStandardPool} from "src/pools/IStandardPool.sol";
-import {CurveStableSwap} from "src/pools/CurveStableSwap.sol";
-import {UniswapV3} from "src/pools/UniswapV3.sol";
-import {CurveStableSwapFactory} from "src/pools/CurveStableSwapFactory.sol";
-import {UniswapV3Factory} from "src/pools/UniswapV3Factory.sol";
+import {PathRegistry} from "src/PathRegistry.sol";
+import {IPath} from "src/paths/IPath.sol";
+import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
+import {UniswapV3} from "src/paths/UniswapV3.sol";
+import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
+import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 
-contract PoolRegistryScript is Script {
+contract PathRegistryScript is Script {
     address public constant CURVE_CRVUSD_USDT =
         0x390f3595bCa2Df7d23783dFd126427CCeb997BF4;
     address public constant CURVE_CRVUSD_USDC =
@@ -23,7 +23,7 @@ contract PoolRegistryScript is Script {
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    function _hashTokenPair(
+    function _hashPair(
         address inputToken,
         address outputToken
     ) private pure returns (bytes32) {
@@ -32,36 +32,28 @@ contract PoolRegistryScript is Script {
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        bytes32 crvUSDETH = _hashTokenPair(CRVUSD, WETH);
-        bytes32 ethCRVUSD = _hashTokenPair(WETH, CRVUSD);
-        address[] memory crvUSDETHPools = new address[](2);
-        address[] memory ethCRVUSDPools = new address[](2);
+        bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
+        bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
+        IPath[] memory crvUSDETHPools = new IPath[](2);
+        IPath[] memory ethCRVUSDPools = new IPath[](2);
 
         vm.startBroadcast(deployerPrivateKey);
 
         UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();
         CurveStableSwapFactory curveStableSwapFactory = new CurveStableSwapFactory();
-        crvUSDETHPools[0] = curveStableSwapFactory.create(
-            CURVE_CRVUSD_USDC,
-            1,
-            0
+        crvUSDETHPools[0] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
-        crvUSDETHPools[1] = uniswapV3Factory.create(
-            UNISWAP_USDC_ETH,
-            USDC,
-            true
+        crvUSDETHPools[1] = IPath(
+            uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
-        ethCRVUSDPools[0] = uniswapV3Factory.create(
-            UNISWAP_USDC_ETH,
-            WETH,
-            false
+        ethCRVUSDPools[0] = IPath(
+            uniswapV3Factory.create(UNISWAP_USDC_ETH, WETH, false)
         );
-        ethCRVUSDPools[1] = curveStableSwapFactory.create(
-            CURVE_CRVUSD_USDC,
-            0,
-            1
+        ethCRVUSDPools[1] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
         );
-        PoolRegistry registry = new PoolRegistry(vm.envAddress("OWNER"));
+        PathRegistry registry = new PathRegistry(vm.envAddress("OWNER"));
 
         registry.addExchangePath(crvUSDETH, crvUSDETHPools);
         registry.addExchangePath(ethCRVUSD, ethCRVUSDPools);

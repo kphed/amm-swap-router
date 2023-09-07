@@ -2,7 +2,8 @@
 pragma solidity 0.8.19;
 
 import {Clone} from "solady/utils/Clone.sol";
-import {IStandardPool} from "src/pools/IStandardPool.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {IPath} from "src/paths/IPath.sol";
 
 interface ICurveStableSwap {
     function get_dy(
@@ -28,7 +29,9 @@ interface ICurveStableSwap {
     function coins(uint256 index) external view returns (address);
 }
 
-contract CurveStableSwap is Clone, IStandardPool {
+contract CurveStableSwap is Clone, IPath {
+    using SafeTransferLib for address;
+
     uint256 private constant _OFFSET_POOL = 0;
     uint256 private constant _OFFSET_INPUT_TOKEN_INDEX = 20;
     uint256 private constant _OFFSET_OUTPUT_TOKEN_INDEX = 26;
@@ -58,11 +61,15 @@ contract CurveStableSwap is Clone, IStandardPool {
 
         _initialized = true;
         uint256 index = 0;
-        ICurveStableSwap curveStableSwapPool = ICurveStableSwap(_pool());
+        ICurveStableSwap curveStableSwapPool = _pool();
 
         while (true) {
             try curveStableSwapPool.coins(index) returns (address token) {
                 _tokens.push(token);
+                token.safeApproveWithRetry(
+                    address(curveStableSwapPool),
+                    type(uint256).max
+                );
 
                 unchecked {
                     ++index;
@@ -70,6 +77,14 @@ contract CurveStableSwap is Clone, IStandardPool {
             } catch {
                 return;
             }
+        }
+    }
+
+    function approveSpenders() external {
+        address poolAddr = address(_pool());
+
+        for (uint256 i = 0; i < _tokens.length; ++i) {
+            _tokens[i].safeApproveWithRetry(poolAddr, type(uint256).max);
         }
     }
 
@@ -90,13 +105,17 @@ contract CurveStableSwap is Clone, IStandardPool {
     }
 
     function swap(uint256 amount) external returns (uint256) {
+        address token = _tokens[uint256(int256(_inputTokenIndex()))];
+
+        token.safeTransferFrom(msg.sender, address(this), amount);
+
         return
             _pool().exchange(
                 _inputTokenIndex(),
                 _outputTokenIndex(),
                 amount,
                 _MIN_SWAP_AMOUNT,
-                address(this)
+                msg.sender
             );
     }
 }

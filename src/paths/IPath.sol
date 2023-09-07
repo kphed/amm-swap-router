@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-interface IStandardPool {
+interface IPath {
     function pool() external pure returns (address);
 
     function tokens() external view returns (address[] memory);

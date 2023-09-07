@@ -2,7 +2,8 @@
 pragma solidity 0.8.19;
 
 import {Clone} from "solady/utils/Clone.sol";
-import {IStandardPool} from "src/pools/IStandardPool.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {IPath} from "src/paths/IPath.sol";
 
 interface IUniswapV3 {
     function token0() external view returns (address);
@@ -25,7 +26,9 @@ interface IUniswapV3 {
     ) external returns (int256 amount0, int256 amount1);
 }
 
-contract UniswapV3 is Clone, IStandardPool {
+contract UniswapV3 is Clone, IPath {
+    using SafeTransferLib for address;
+
     uint256 private constant _OFFSET_POOL = 0;
     uint256 private constant _OFFSET_INPUT_TOKEN = 20;
     uint256 private constant _OFFSET_ZERO_FOR_ONE = 40;
@@ -43,6 +46,7 @@ contract UniswapV3 is Clone, IStandardPool {
     address[] private _tokens;
 
     error AlreadyInitialized();
+    error UnauthorizedCaller();
 
     function _pool() private pure returns (address) {
         return _getArgAddress(_OFFSET_POOL);
@@ -110,13 +114,40 @@ contract UniswapV3 is Clone, IStandardPool {
     function swap(uint256 amount) external returns (uint256) {
         bool zeroForOne = _zeroForOne();
         (int256 amount0, int256 amount1) = IUniswapV3(_pool()).swap(
-            address(this),
+            msg.sender,
             zeroForOne,
             int256(amount),
             _sqrtPriceLimit(),
-            _encodedInputToken()
+            abi.encode(msg.sender, _getArgAddress(_OFFSET_INPUT_TOKEN))
         );
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);
+    }
+
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        if (msg.sender != _pool()) revert UnauthorizedCaller();
+
+        (address payer, address inputToken) = abi.decode(
+            data,
+            (address, address)
+        );
+
+        if (amount0Delta > 0) {
+            inputToken.safeTransferFrom(
+                payer,
+                msg.sender,
+                uint256(amount0Delta)
+            );
+        } else if (amount1Delta > 0) {
+            inputToken.safeTransferFrom(
+                payer,
+                msg.sender,
+                uint256(amount1Delta)
+            );
+        }
     }
 }

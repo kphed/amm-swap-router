@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {LibClone} from "solady/utils/LibClone.sol";
-import {CurveStableSwap} from "src/pools/CurveStableSwap.sol";
+import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
 
 contract CurveStableSwapFactory {
     address public immutable implementation = address(new CurveStableSwap());

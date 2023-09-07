@@ -2,7 +2,6 @@
 pragma solidity 0.8.19;
 
 import {Clone} from "solady/utils/Clone.sol";
-import {Solarray} from "solarray/Solarray.sol";
 import {IStandardPool} from "src/pools/IStandardPool.sol";
 
 interface ICurveStableSwap {
@@ -30,8 +29,6 @@ interface ICurveStableSwap {
 }
 
 contract CurveStableSwap is Clone, IStandardPool {
-    using Solarray for address[];
-
     uint256 private constant _OFFSET_POOL = 0;
     uint256 private constant _OFFSET_INPUT_TOKEN_INDEX = 20;
     uint256 private constant _OFFSET_OUTPUT_TOKEN_INDEX = 26;

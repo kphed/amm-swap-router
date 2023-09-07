@@ -10,7 +10,7 @@ contract PoolRegistry is Ownable {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
-    uint256 private constant _FEE_DEDUCTED = 9_999;
+    uint256 private constant _FEE_DEDUCTED = 9_990;
     uint256 private constant _FEE_BASE = 10_000;
 
     mapping(address pool => uint256 tokenCount) public pools;
@@ -205,7 +205,12 @@ contract PoolRegistry is Ownable {
     ) external view returns (uint256 index, uint256 input) {
         address[][] memory _exchangePaths = exchangePaths[pair];
         uint256 exchangePathsLength = _exchangePaths.length;
+
+        console.log("output", output);
+
         output = output.mulDiv(_FEE_BASE, _FEE_DEDUCTED);
+
+        console.log("output", output);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {

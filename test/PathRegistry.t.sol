@@ -151,13 +151,22 @@ contract PathRegistryTest is Test {
         for (uint256 i = 0; i < tokens.length; ++i) {
             assertEq(
                 type(uint256).max,
-                ERC20(tokens[i]).allowance(address(registry), pool)
+                ERC20(tokens[i]).allowance(
+                    address(registry),
+                    address(poolInterface)
+                )
             );
 
             // Set the registry's allowances to zero for the pool's tokens.
-            tokens[i].safeApproveWithRetry(pool, 0);
+            tokens[i].safeApproveWithRetry(address(poolInterface), 0);
 
-            assertEq(0, ERC20(tokens[i]).allowance(address(registry), pool));
+            assertEq(
+                0,
+                ERC20(tokens[i]).allowance(
+                    address(registry),
+                    address(poolInterface)
+                )
+            );
         }
 
         vm.stopPrank();
@@ -174,7 +183,10 @@ contract PathRegistryTest is Test {
         for (uint256 i = 0; i < tokens.length; ++i) {
             assertEq(
                 type(uint256).max,
-                ERC20(tokens[i]).allowance(address(registry), pool)
+                ERC20(tokens[i]).allowance(
+                    address(registry),
+                    address(poolInterface)
+                )
             );
         }
     }
@@ -269,7 +281,7 @@ contract PathRegistryTest is Test {
                 type(uint256).max,
                 ERC20(curveCRVUSDUSDCTokens[i]).allowance(
                     address(registry),
-                    CURVE_CRVUSD_USDC
+                    address(interfaces[0])
                 )
             );
         }
@@ -279,7 +291,7 @@ contract PathRegistryTest is Test {
                 type(uint256).max,
                 ERC20(uniswapUSDCETH[i]).allowance(
                     address(registry),
-                    UNISWAP_USDC_ETH
+                    address(interfaces[1])
                 )
             );
         }

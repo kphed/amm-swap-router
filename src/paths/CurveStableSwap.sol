@@ -44,18 +44,6 @@ contract CurveStableSwap is Clone, IPath {
 
     error AlreadyInitialized();
 
-    function _pool() private pure returns (ICurveStableSwap) {
-        return ICurveStableSwap(_getArgAddress(_OFFSET_POOL));
-    }
-
-    function _inputTokenIndex() private pure returns (int48) {
-        return int48(_getArgUint48(_OFFSET_INPUT_TOKEN_INDEX));
-    }
-
-    function _outputTokenIndex() private pure returns (int48) {
-        return int48(_getArgUint48(_OFFSET_OUTPUT_TOKEN_INDEX));
-    }
-
     function initialize() external {
         if (_initialized) revert AlreadyInitialized();
 
@@ -80,11 +68,27 @@ contract CurveStableSwap is Clone, IPath {
         }
     }
 
+    function _pool() private pure returns (ICurveStableSwap) {
+        return ICurveStableSwap(_getArgAddress(_OFFSET_POOL));
+    }
+
+    function _inputTokenIndex() private pure returns (int48) {
+        return int48(_getArgUint48(_OFFSET_INPUT_TOKEN_INDEX));
+    }
+
+    function _outputTokenIndex() private pure returns (int48) {
+        return int48(_getArgUint48(_OFFSET_OUTPUT_TOKEN_INDEX));
+    }
+
     function approveSpenders() external {
         address poolAddr = address(_pool());
 
-        for (uint256 i = 0; i < _tokens.length; ++i) {
+        for (uint256 i = 0; i < _tokens.length; ) {
             _tokens[i].safeApproveWithRetry(poolAddr, type(uint256).max);
+
+            unchecked {
+                ++i;
+            }
         }
     }
 

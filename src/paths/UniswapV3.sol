@@ -48,6 +48,16 @@ contract UniswapV3 is Clone, IPath {
     error AlreadyInitialized();
     error UnauthorizedCaller();
 
+    function initialize() external {
+        if (_initialized) revert AlreadyInitialized();
+
+        _initialized = true;
+        IUniswapV3 uniswapV3Pool = IUniswapV3(_pool());
+
+        _tokens.push(uniswapV3Pool.token0());
+        _tokens.push(uniswapV3Pool.token1());
+    }
+
     function _pool() private pure returns (address) {
         return _getArgAddress(_OFFSET_POOL);
     }
@@ -67,16 +77,6 @@ contract UniswapV3 is Clone, IPath {
 
     function _sqrtPriceLimit() private pure returns (uint160) {
         return _getArgUint160(_OFFSET_SQRT_PRICE_LIMIT);
-    }
-
-    function initialize() external {
-        if (_initialized) revert AlreadyInitialized();
-
-        _initialized = true;
-        IUniswapV3 uniswapV3Pool = IUniswapV3(_pool());
-
-        _tokens.push(uniswapV3Pool.token0());
-        _tokens.push(uniswapV3Pool.token1());
     }
 
     function pool() external pure returns (address) {

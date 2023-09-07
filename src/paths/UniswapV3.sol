@@ -62,10 +62,6 @@ contract UniswapV3 is Clone, IPath {
         return _getArgAddress(_OFFSET_POOL);
     }
 
-    function _encodedInputToken() private pure returns (bytes memory) {
-        return abi.encode(_getArgAddress(_OFFSET_INPUT_TOKEN));
-    }
-
     function _zeroForOne() private pure returns (bool) {
         return
             bytes32(
@@ -77,6 +73,10 @@ contract UniswapV3 is Clone, IPath {
 
     function _sqrtPriceLimit() private pure returns (uint160) {
         return _getArgUint160(_OFFSET_SQRT_PRICE_LIMIT);
+    }
+
+    function _encodeSwapData() private view returns (bytes memory) {
+        return abi.encode(msg.sender, _getArgAddress(_OFFSET_INPUT_TOKEN));
     }
 
     function pool() external pure returns (address) {
@@ -118,7 +118,7 @@ contract UniswapV3 is Clone, IPath {
             zeroForOne,
             int256(amount),
             _sqrtPriceLimit(),
-            abi.encode(msg.sender, _getArgAddress(_OFFSET_INPUT_TOKEN))
+            _encodeSwapData()
         );
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);

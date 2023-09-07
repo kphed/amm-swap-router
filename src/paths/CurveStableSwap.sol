@@ -82,8 +82,9 @@ contract CurveStableSwap is Clone, IPath {
 
     function approveSpenders() external {
         address poolAddr = address(_pool());
+        uint256 tokensLength = _tokens.length;
 
-        for (uint256 i = 0; i < _tokens.length; ) {
+        for (uint256 i = 0; i < tokensLength; ) {
             _tokens[i].safeApproveWithRetry(poolAddr, type(uint256).max);
 
             unchecked {
@@ -109,13 +110,14 @@ contract CurveStableSwap is Clone, IPath {
     }
 
     function swap(uint256 amount) external returns (uint256) {
-        address token = _tokens[uint256(int256(_inputTokenIndex()))];
+        int48 inputTokenIndex = _inputTokenIndex();
+        address token = _tokens[uint256(int256(inputTokenIndex))];
 
         token.safeTransferFrom(msg.sender, address(this), amount);
 
         return
             _pool().exchange(
-                _inputTokenIndex(),
+                inputTokenIndex,
                 _outputTokenIndex(),
                 amount,
                 _MIN_SWAP_AMOUNT,

@@ -58,6 +58,19 @@ contract PathRegistryScript is Script {
         registry.addExchangePath(crvUSDETH, crvUSDETHPools);
         registry.addExchangePath(ethCRVUSD, ethCRVUSDPools);
 
+        console.log("===");
+        console.log("Registry", address(registry));
+        console.log("");
+        console.log("=== crvUSD => WETH ===");
+        console.log("CurveStableSwap: CRVUSD-USDC", address(crvUSDETHPools[0]));
+        console.log("Uniswap: USDC-WETH", address(crvUSDETHPools[1]));
+        console.log("");
+        console.log("=== WETH => crvUSD ===");
+        console.log("Uniswap: USDC-WETH", address(ethCRVUSDPools[0]));
+        console.log("CurveStableSwap: CRVUSD-USDC", address(ethCRVUSDPools[1]));
+        console.log("");
+        console.log("===");
+
         vm.stopBroadcast();
     }
 }

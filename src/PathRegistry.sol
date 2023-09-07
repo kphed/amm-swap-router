@@ -139,29 +139,32 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         uint256 input,
         uint256 minOutput,
         uint256 index
-    ) external nonReentrant returns (uint256) {
+    ) external nonReentrant returns (uint256 output) {
         inputToken.safeTransferFrom(msg.sender, address(this), input);
 
         IPath[] memory paths = exchangePaths[
             keccak256(abi.encodePacked(inputToken, outputToken))
         ][index];
         uint256 pathsLength = paths.length;
+        output = input;
 
         for (uint256 i = 0; i < pathsLength; ) {
-            input = paths[i].swap(input);
+            output = paths[i].swap(output);
 
             unchecked {
                 ++i;
             }
         }
 
-        input = input.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
+        if (output < minOutput) revert InsufficientOutput();
 
-        if (input < minOutput) revert InsufficientOutput();
+        output = output.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
 
-        outputToken.safeTransfer(msg.sender, input);
+        // If the post-fee amount is less than the minimum, transfer the minimum to the swapper,
+        // since we know that the pre-fee amount is greater than or equal to the minimum.
+        if (output < minOutput) output = minOutput;
 
-        return input;
+        outputToken.safeTransfer(msg.sender, output);
     }
 
     function getSwapOutput(
@@ -198,7 +201,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     ) external view returns (uint256 index, uint256 input) {
         IPath[][] memory _exchangePaths = exchangePaths[pair];
         uint256 exchangePathsLength = _exchangePaths.length;
-        output = output.mulDiv(_FEE_BASE, _FEE_DEDUCTED);
+        output = output.mulDivUp(_FEE_BASE, _FEE_DEDUCTED);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {

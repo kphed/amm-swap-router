@@ -37,8 +37,6 @@ contract PoolRegistry is Ownable {
     error InvalidTokenPair();
     error EmptyArray();
 
-    receive() external payable {}
-
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
     }
@@ -144,21 +142,23 @@ contract PoolRegistry is Ownable {
         ][index];
         uint256 pathsLength = paths.length;
 
-        unchecked {
-            for (uint256 i = 0; i < pathsLength; ++i) {
-                (bool success, bytes memory data) = paths[i].delegatecall(
-                    abi.encodeWithSelector(IStandardPool.swap.selector, input)
-                );
+        for (uint256 i = 0; i < pathsLength; ) {
+            (bool success, bytes memory data) = paths[i].delegatecall(
+                abi.encodeWithSelector(IStandardPool.swap.selector, input)
+            );
 
-                if (!success) revert FailedSwap();
+            if (!success) revert FailedSwap();
 
-                input = abi.decode(data, (uint256));
+            input = abi.decode(data, (uint256));
+
+            unchecked {
+                ++i;
             }
-
-            input = input.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
-
-            if (input < minOutput) revert InsufficientOutput();
         }
+
+        input = input.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
+
+        if (input < minOutput) revert InsufficientOutput();
 
         outputToken.safeTransfer(msg.sender, input);
 
@@ -206,11 +206,7 @@ contract PoolRegistry is Ownable {
         address[][] memory _exchangePaths = exchangePaths[pair];
         uint256 exchangePathsLength = _exchangePaths.length;
 
-        console.log("output", output);
-
         output = output.mulDiv(_FEE_BASE, _FEE_DEDUCTED);
-
-        console.log("output", output);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {

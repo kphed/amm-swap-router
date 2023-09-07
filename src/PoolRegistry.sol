@@ -14,18 +14,15 @@ contract PoolRegistry is Ownable {
     uint256 private constant _FEE_BASE = 10_000;
 
     mapping(address pool => uint256 tokenCount) public pools;
-    mapping(bytes32 tokenPair => address[][] path) public exchangePaths;
+    mapping(bytes32 pair => address[][] path) public exchangePaths;
 
     event WithdrawERC20(
         address indexed token,
         address indexed recipient,
         uint256 amount
     );
-    event AddExchangePath(bytes32 indexed tokenPair, uint256 indexed addIndex);
-    event RemoveExchangePath(
-        bytes32 indexed tokenPair,
-        uint256 indexed removeIndex
-    );
+    event AddExchangePath(bytes32 indexed pair, uint256 indexed index);
+    event RemoveExchangePath(bytes32 indexed pair, uint256 indexed index);
     event ApprovePool(
         IStandardPool indexed poolInterface,
         address indexed pool,
@@ -39,6 +36,8 @@ contract PoolRegistry is Ownable {
     error PoolDoesNotExist();
     error InvalidTokenPair();
     error EmptyArray();
+
+    receive() external payable {}
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -55,16 +54,16 @@ contract PoolRegistry is Ownable {
     }
 
     function addExchangePath(
-        bytes32 tokenPair,
+        bytes32 pair,
         address[] calldata interfaces
     ) external onlyOwner {
-        if (tokenPair == bytes32(0)) revert InvalidTokenPair();
+        if (pair == bytes32(0)) revert InvalidTokenPair();
 
         uint256 interfacesLength = interfaces.length;
 
         if (interfacesLength == 0) revert EmptyArray();
 
-        address[][] storage _exchangePaths = exchangePaths[tokenPair];
+        address[][] storage _exchangePaths = exchangePaths[pair];
         uint256 addIndex = _exchangePaths.length;
 
         _exchangePaths.push();
@@ -87,16 +86,16 @@ contract PoolRegistry is Ownable {
             }
         }
 
-        emit AddExchangePath(tokenPair, addIndex);
+        emit AddExchangePath(pair, addIndex);
     }
 
     function removeExchangePath(
-        bytes32 tokenPair,
+        bytes32 pair,
         uint256 removeIndex
     ) external onlyOwner {
-        if (tokenPair == bytes32(0)) revert InvalidTokenPair();
+        if (pair == bytes32(0)) revert InvalidTokenPair();
 
-        address[][] storage _exchangePaths = exchangePaths[tokenPair];
+        address[][] storage _exchangePaths = exchangePaths[pair];
         uint256 lastIndex = _exchangePaths.length - 1;
 
         // Throw if the removal index is for an element that doesn't exist.
@@ -109,7 +108,7 @@ contract PoolRegistry is Ownable {
 
         _exchangePaths.pop();
 
-        emit RemoveExchangePath(tokenPair, removeIndex);
+        emit RemoveExchangePath(pair, removeIndex);
     }
 
     function approvePool(IStandardPool poolInterface) external {
@@ -134,64 +133,49 @@ contract PoolRegistry is Ownable {
     function swap(
         address inputToken,
         address outputToken,
-        uint256 inputTokenAmount,
-        uint256 minOutputTokenAmount,
-        uint256 pathIndex
+        uint256 input,
+        uint256 minOutput,
+        uint256 index
     ) external returns (uint256) {
-        inputToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputTokenAmount
-        );
+        inputToken.safeTransferFrom(msg.sender, address(this), input);
 
         address[] memory paths = exchangePaths[
             keccak256(abi.encodePacked(inputToken, outputToken))
-        ][pathIndex];
+        ][index];
         uint256 pathsLength = paths.length;
 
         unchecked {
             for (uint256 i = 0; i < pathsLength; ++i) {
                 (bool success, bytes memory data) = paths[i].delegatecall(
-                    abi.encodeWithSelector(
-                        IStandardPool.swap.selector,
-                        inputTokenAmount
-                    )
+                    abi.encodeWithSelector(IStandardPool.swap.selector, input)
                 );
 
                 if (!success) revert FailedSwap();
 
-                inputTokenAmount = abi.decode(data, (uint256));
+                input = abi.decode(data, (uint256));
             }
 
-            inputTokenAmount = inputTokenAmount.mulDiv(
-                _FEE_DEDUCTED,
-                _FEE_BASE
-            );
+            input = input.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
 
-            if (inputTokenAmount < minOutputTokenAmount)
-                revert InsufficientOutput();
+            if (input < minOutput) revert InsufficientOutput();
         }
 
-        outputToken.safeTransfer(msg.sender, inputTokenAmount);
+        outputToken.safeTransfer(msg.sender, input);
 
-        return inputTokenAmount;
+        return input;
     }
 
     function getExchangePaths(
-        bytes32 tokenPair
+        bytes32 pair
     ) external view returns (address[][] memory) {
-        return exchangePaths[tokenPair];
+        return exchangePaths[pair];
     }
 
-    function getOutputAmount(
-        bytes32 tokenPair,
-        uint256 swapAmount
-    )
-        external
-        view
-        returns (uint256 bestOutputIndex, uint256 bestOutputAmount)
-    {
-        address[][] memory _exchangePaths = exchangePaths[tokenPair];
+    function getSwapOutput(
+        bytes32 pair,
+        uint256 input
+    ) external view returns (uint256 index, uint256 output) {
+        address[][] memory _exchangePaths = exchangePaths[pair];
         uint256 exchangePathsLength = _exchangePaths.length;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
@@ -199,48 +183,48 @@ contract PoolRegistry is Ownable {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
                 address[] memory paths = _exchangePaths[i];
                 uint256 pathsLength = paths.length;
-                uint256 amount = swapAmount;
+                uint256 _input = input;
 
                 for (uint256 j = 0; j < pathsLength; ++j) {
-                    amount = IStandardPool(paths[j]).quoteTokenOutput(amount);
+                    _input = IStandardPool(paths[j]).quoteTokenOutput(_input);
                 }
 
-                if (amount > bestOutputAmount) {
-                    bestOutputIndex = i;
-                    bestOutputAmount = amount;
+                if (_input > output) {
+                    index = i;
+                    output = _input;
                 }
             }
         }
 
-        bestOutputAmount = bestOutputAmount.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
+        output = output.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
     }
 
-    function getInputAmount(
-        bytes32 tokenPair,
-        uint256 swapAmount
-    ) external view returns (uint256 bestInputIndex, uint256 bestInputAmount) {
-        address[][] memory _exchangePaths = exchangePaths[tokenPair];
+    function getSwapInput(
+        bytes32 pair,
+        uint256 output
+    ) external view returns (uint256 index, uint256 input) {
+        address[][] memory _exchangePaths = exchangePaths[pair];
         uint256 exchangePathsLength = _exchangePaths.length;
-        swapAmount = swapAmount.mulDiv(_FEE_BASE, _FEE_DEDUCTED);
+        output = output.mulDiv(_FEE_BASE, _FEE_DEDUCTED);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
                 address[] memory paths = _exchangePaths[i];
                 uint256 pathsLength = paths.length;
-                uint256 amount = swapAmount;
+                uint256 _output = output;
 
                 while (pathsLength != 0) {
                     --pathsLength;
 
-                    amount = IStandardPool(paths[pathsLength]).quoteTokenInput(
-                        amount
-                    );
+                    _output = IStandardPool(paths[pathsLength]).quoteTokenInput(
+                            _output
+                        );
                 }
 
-                if (amount < bestInputAmount || bestInputAmount == 0) {
-                    bestInputIndex = i;
-                    bestInputAmount = amount;
+                if (_output < input || input == 0) {
+                    index = i;
+                    input = _output;
                 }
             }
         }

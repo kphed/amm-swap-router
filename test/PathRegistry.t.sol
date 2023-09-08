@@ -67,24 +67,44 @@ contract PathRegistryTest is Test {
      */
     function _setUpPools() private {
         bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
-        IPath[] memory interfaces = new IPath[](2);
-        interfaces[0] = IPath(
+        IPath[] memory routes = new IPath[](2);
+        routes[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
-        interfaces[1] = IPath(
+        routes[1] = IPath(
             uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
 
-        registry.addRoute(crvUSDETH, interfaces);
+        registry.addRoute(crvUSDETH, routes);
 
-        interfaces[0] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
+        routes[0] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
         );
-        interfaces[1] = IPath(
+        routes[1] = IPath(
             uniswapV3Factory.create(UNISWAP_USDT_ETH, USDT, false)
         );
 
-        registry.addRoute(crvUSDETH, interfaces);
+        registry.addRoute(crvUSDETH, routes);
+
+        bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
+
+        routes[0] = IPath(
+            uniswapV3Factory.create(UNISWAP_USDC_ETH, WETH, false)
+        );
+        routes[1] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
+        );
+
+        registry.addRoute(ethCRVUSD, routes);
+
+        routes[0] = IPath(
+            uniswapV3Factory.create(UNISWAP_USDT_ETH, WETH, true)
+        );
+        routes[1] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
+        );
+
+        registry.addRoute(ethCRVUSD, routes);
     }
 
     /*//////////////////////////////////////////////////////////////

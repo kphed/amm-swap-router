@@ -11,7 +11,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
-    uint256 private constant _FEE_DEDUCTED = 9_990;
+    uint256 private constant _FEE_DEDUCTED = 9_999;
     uint256 private constant _FEE_BASE = 10_000;
 
     mapping(bytes32 pair => IPath[][] path) private _routes;

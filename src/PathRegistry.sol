@@ -114,15 +114,18 @@ contract PathRegistry is Ownable, ReentrancyGuard {
             keccak256(abi.encodePacked(inputToken, outputToken))
         ][index];
         uint256 pathsLength = paths.length;
-        output = input;
+        output = outputToken.balanceOf(address(this));
 
         for (uint256 i = 0; i < pathsLength; ) {
-            output = paths[i].swap(output);
+            input = paths[i].swap(input);
 
             unchecked {
                 ++i;
             }
         }
+
+        // Prevent any chance of a malicious path rugging by evaluating the output token balance diff.
+        output = outputToken.balanceOf(address(this)) - output;
 
         if (output < minOutput) revert InsufficientOutput();
 

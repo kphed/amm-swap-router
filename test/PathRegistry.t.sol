@@ -41,13 +41,8 @@ contract PathRegistryTest is Test {
         address indexed recipient,
         uint256 amount
     );
-    event AddExchangePath(bytes32 indexed pair, uint256 indexed addIndex);
-    event RemoveExchangePath(bytes32 indexed pair, uint256 indexed removeIndex);
-    event ApprovePath(
-        IPath indexed path,
-        address indexed pool,
-        address[] tokens
-    );
+    event AddExchangePath(bytes32 indexed pair, uint256 indexed index);
+    event ApprovePath(IPath indexed path, address[] tokens);
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
     receive() external payable {}
@@ -138,12 +133,12 @@ contract PathRegistryTest is Test {
     function testApprovePath() external {
         _setUpPools();
 
-        address pool = CURVE_CRVUSD_USDC;
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath path = IPath(registry.getExchangePaths(pair)[0][0]);
-
-        assertEq(pool, path.pool());
-
+        uint256 outerPathIndex = 0;
+        uint256 innerPathIndex = 0;
+        IPath path = IPath(
+            registry.getExchangePaths(pair)[outerPathIndex][innerPathIndex]
+        );
         address[] memory tokens = path.tokens();
 
         vm.startPrank(address(registry));
@@ -168,11 +163,11 @@ contract PathRegistryTest is Test {
         address msgSender = address(this);
 
         vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
+        vm.expectEmit(true, false, false, true, address(registry));
 
-        emit ApprovePath(path, pool, tokens);
+        emit ApprovePath(path, tokens);
 
-        registry.approvePath(path);
+        registry.approvePath(pair, outerPathIndex, innerPathIndex);
 
         for (uint256 i = 0; i < tokens.length; ++i) {
             assertEq(

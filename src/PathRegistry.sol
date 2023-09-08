@@ -22,12 +22,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         uint256 amount
     );
     event AddExchangePath(bytes32 indexed pair, uint256 indexed index);
-    event RemoveExchangePath(bytes32 indexed pair, uint256 indexed index);
-    event ApprovePath(
-        IPath indexed path,
-        address indexed pool,
-        address[] tokens
-    );
+    event ApprovePath(IPath indexed path, address[] tokens);
 
     error InsufficientOutput();
     error RemoveIndexOOB();
@@ -86,12 +81,16 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         }
     }
 
-    function approvePath(IPath path) external onlyOwner {
+    function approvePath(
+        bytes32 pair,
+        uint256 outerPathIndex,
+        uint256 innerPathIndex
+    ) external onlyOwner {
+        IPath path = exchangePaths[pair][outerPathIndex][innerPathIndex];
         address[] memory tokens = path.tokens();
-        address pool = path.pool();
         uint256 tokensLength = tokens.length;
 
-        emit ApprovePath(path, pool, tokens);
+        emit ApprovePath(path, tokens);
 
         for (uint256 i = 0; i < tokensLength; ) {
             tokens[i].safeApproveWithRetry(address(path), type(uint256).max);

@@ -14,7 +14,6 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     uint256 private constant _FEE_DEDUCTED = 9_990;
     uint256 private constant _FEE_BASE = 10_000;
 
-    mapping(address pool => uint256 tokenCount) public pools;
     mapping(bytes32 pair => IPath[][] path) public exchangePaths;
 
     event WithdrawERC20(
@@ -75,7 +74,6 @@ contract PathRegistry is Ownable, ReentrancyGuard {
                 address[] memory tokens = poolInterface.tokens();
                 address pool = poolInterface.pool();
                 uint256 tokensLength = tokens.length;
-                pools[pool] = tokensLength;
 
                 for (uint256 j = 0; j < tokensLength; ++j) {
                     tokens[j].safeApproveWithRetry(
@@ -111,12 +109,9 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         emit RemoveExchangePath(pair, removeIndex);
     }
 
-    function approvePool(IPath poolInterface) external nonReentrant {
+    function approvePool(IPath poolInterface) external onlyOwner {
         address[] memory tokens = poolInterface.tokens();
         address pool = poolInterface.pool();
-
-        if (pools[pool] == 0) revert PoolDoesNotExist();
-
         uint256 tokensLength = tokens.length;
 
         emit ApprovePool(poolInterface, pool, tokens);

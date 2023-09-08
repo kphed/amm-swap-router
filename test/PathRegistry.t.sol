@@ -249,8 +249,6 @@ contract PathRegistryTest is Test {
         address[] memory uniswapUSDCETH = IPath(interfaces[1]).tokens();
 
         assertEq(0, addIndex);
-        assertEq(0, registry.pools(CURVE_CRVUSD_USDC));
-        assertEq(0, registry.pools(UNISWAP_USDC_ETH));
 
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(registry));
@@ -262,11 +260,6 @@ contract PathRegistryTest is Test {
         IPath[][] memory exchangePaths = registry.getExchangePaths(pair);
 
         assertEq(1, exchangePaths.length);
-        assertEq(
-            curveCRVUSDUSDCTokens.length,
-            registry.pools(CURVE_CRVUSD_USDC)
-        );
-        assertEq(uniswapUSDCETH.length, registry.pools(UNISWAP_USDC_ETH));
 
         IPath[] memory _interfaces = exchangePaths[addIndex];
 

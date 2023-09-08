@@ -72,7 +72,6 @@ contract PathRegistry is Ownable, ReentrancyGuard {
             for (uint256 i = 0; i < interfacesLength; ++i) {
                 IPath path = interfaces[i];
                 address[] memory tokens = path.tokens();
-                address pool = path.pool();
                 uint256 tokensLength = tokens.length;
 
                 for (uint256 j = 0; j < tokensLength; ++j) {
@@ -85,28 +84,6 @@ contract PathRegistry is Ownable, ReentrancyGuard {
                 paths.push(path);
             }
         }
-    }
-
-    function removeExchangePath(
-        bytes32 pair,
-        uint256 removeIndex
-    ) external onlyOwner {
-        if (pair == bytes32(0)) revert InvalidPair();
-
-        IPath[][] storage _exchangePaths = exchangePaths[pair];
-        uint256 lastIndex = _exchangePaths.length - 1;
-
-        // Throw if the removal index is for an element that doesn't exist.
-        if (removeIndex > lastIndex) revert RemoveIndexOOB();
-
-        if (removeIndex != lastIndex) {
-            // Set the last element to the removal index (the original will be removed).
-            _exchangePaths[removeIndex] = _exchangePaths[lastIndex];
-        }
-
-        _exchangePaths.pop();
-
-        emit RemoveExchangePath(pair, removeIndex);
     }
 
     function approvePath(IPath path) external onlyOwner {

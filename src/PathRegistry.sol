@@ -23,8 +23,8 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     );
     event AddExchangePath(bytes32 indexed pair, uint256 indexed index);
     event RemoveExchangePath(bytes32 indexed pair, uint256 indexed index);
-    event ApprovePool(
-        IPath indexed poolInterface,
+    event ApprovePath(
+        IPath indexed path,
         address indexed pool,
         address[] tokens
     );
@@ -70,19 +70,19 @@ contract PathRegistry is Ownable, ReentrancyGuard {
 
         unchecked {
             for (uint256 i = 0; i < interfacesLength; ++i) {
-                IPath poolInterface = interfaces[i];
-                address[] memory tokens = poolInterface.tokens();
-                address pool = poolInterface.pool();
+                IPath path = interfaces[i];
+                address[] memory tokens = path.tokens();
+                address pool = path.pool();
                 uint256 tokensLength = tokens.length;
 
                 for (uint256 j = 0; j < tokensLength; ++j) {
                     tokens[j].safeApproveWithRetry(
-                        address(poolInterface),
+                        address(path),
                         type(uint256).max
                     );
                 }
 
-                paths.push(poolInterface);
+                paths.push(path);
             }
         }
     }
@@ -109,18 +109,15 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         emit RemoveExchangePath(pair, removeIndex);
     }
 
-    function approvePool(IPath poolInterface) external onlyOwner {
-        address[] memory tokens = poolInterface.tokens();
-        address pool = poolInterface.pool();
+    function approvePath(IPath path) external onlyOwner {
+        address[] memory tokens = path.tokens();
+        address pool = path.pool();
         uint256 tokensLength = tokens.length;
 
-        emit ApprovePool(poolInterface, pool, tokens);
+        emit ApprovePath(path, pool, tokens);
 
         for (uint256 i = 0; i < tokensLength; ) {
-            tokens[i].safeApproveWithRetry(
-                address(poolInterface),
-                type(uint256).max
-            );
+            tokens[i].safeApproveWithRetry(address(path), type(uint256).max);
 
             unchecked {
                 ++i;

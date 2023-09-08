@@ -43,8 +43,8 @@ contract PathRegistryTest is Test {
     );
     event AddExchangePath(bytes32 indexed pair, uint256 indexed addIndex);
     event RemoveExchangePath(bytes32 indexed pair, uint256 indexed removeIndex);
-    event ApprovePool(
-        IPath indexed poolInterface,
+    event ApprovePath(
+        IPath indexed path,
         address indexed pool,
         address[] tokens
     );
@@ -132,40 +132,34 @@ contract PathRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                             approvePool
+                             approvePath
     //////////////////////////////////////////////////////////////*/
 
-    function testApprovePool() external {
+    function testApprovePath() external {
         _setUpPools();
 
         address pool = CURVE_CRVUSD_USDC;
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath poolInterface = IPath(registry.getExchangePaths(pair)[0][0]);
+        IPath path = IPath(registry.getExchangePaths(pair)[0][0]);
 
-        assertEq(pool, poolInterface.pool());
+        assertEq(pool, path.pool());
 
-        address[] memory tokens = poolInterface.tokens();
+        address[] memory tokens = path.tokens();
 
         vm.startPrank(address(registry));
 
         for (uint256 i = 0; i < tokens.length; ++i) {
             assertEq(
                 type(uint256).max,
-                ERC20(tokens[i]).allowance(
-                    address(registry),
-                    address(poolInterface)
-                )
+                ERC20(tokens[i]).allowance(address(registry), address(path))
             );
 
             // Set the registry's allowances to zero for the pool's tokens.
-            tokens[i].safeApproveWithRetry(address(poolInterface), 0);
+            tokens[i].safeApproveWithRetry(address(path), 0);
 
             assertEq(
                 0,
-                ERC20(tokens[i]).allowance(
-                    address(registry),
-                    address(poolInterface)
-                )
+                ERC20(tokens[i]).allowance(address(registry), address(path))
             );
         }
 
@@ -176,17 +170,14 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(registry));
 
-        emit ApprovePool(poolInterface, pool, tokens);
+        emit ApprovePath(path, pool, tokens);
 
-        registry.approvePool(poolInterface);
+        registry.approvePath(path);
 
         for (uint256 i = 0; i < tokens.length; ++i) {
             assertEq(
                 type(uint256).max,
-                ERC20(tokens[i]).allowance(
-                    address(registry),
-                    address(poolInterface)
-                )
+                ERC20(tokens[i]).allowance(address(registry), address(path))
             );
         }
     }

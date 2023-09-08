@@ -55,8 +55,8 @@ contract PathRegistryScript is Script {
         );
         PathRegistry registry = new PathRegistry(vm.envAddress("OWNER"));
 
-        registry.addPath(crvUSDETH, crvUSDETHPools);
-        registry.addPath(ethCRVUSD, ethCRVUSDPools);
+        registry.addRoute(crvUSDETH, crvUSDETHPools);
+        registry.addRoute(ethCRVUSD, ethCRVUSDPools);
 
         console.log("===");
         console.log("Registry", address(registry));

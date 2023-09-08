@@ -41,7 +41,8 @@ contract PathRegistryTest is Test {
         address indexed recipient,
         uint256 amount
     );
-    event AddPath(bytes32 indexed pair, uint256 indexed index);
+    event AddRoute(bytes32 indexed pair, uint256 indexed index);
+    event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(IPath indexed path, address[] tokens);
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
@@ -74,7 +75,7 @@ contract PathRegistryTest is Test {
             uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
 
-        registry.addPath(crvUSDETH, interfaces);
+        registry.addRoute(crvUSDETH, interfaces);
 
         interfaces[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
@@ -83,7 +84,7 @@ contract PathRegistryTest is Test {
             uniswapV3Factory.create(UNISWAP_USDT_ETH, USDT, false)
         );
 
-        registry.addPath(crvUSDETH, interfaces);
+        registry.addRoute(crvUSDETH, interfaces);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -127,6 +128,114 @@ contract PathRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                             removeRoute
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotRemoveRouteUnauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 removeIndex = 0;
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.removeRoute(pair, removeIndex);
+    }
+
+    function testCannotRemoveRouteInvalidPair() external {
+        address msgSender = registry.owner();
+        bytes32 invalidTokenPair = bytes32(0);
+        uint256 removeIndex = 0;
+
+        vm.prank(msgSender);
+        vm.expectRevert(PathRegistry.InvalidPair.selector);
+
+        registry.removeRoute(invalidTokenPair, removeIndex);
+    }
+
+    function testCannotRemoveRouteRemovalIndex() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        IPath[][] memory routes = registry.getRoutes(pair);
+        uint256 invalidRemoveIndex = routes.length + 1;
+
+        assertGt(invalidRemoveIndex, routes.length);
+
+        vm.prank(msgSender);
+        vm.expectRevert(PathRegistry.RemoveIndexOOB.selector);
+
+        registry.removeRoute(pair, invalidRemoveIndex);
+    }
+
+    function testRemoveRoute() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        IPath[][] memory routes = registry.getRoutes(pair);
+        uint256 removeIndex = 0;
+        uint256 lastIndex = routes.length - 1;
+        IPath[] memory lastPath = routes[lastIndex];
+
+        assertTrue(removeIndex != lastIndex);
+        assertEq(2, routes.length);
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            assertTrue(address(routes[removeIndex][i]) != address(lastPath[i]));
+        }
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit RemoveRoute(pair, removeIndex);
+
+        registry.removeRoute(pair, removeIndex);
+
+        routes = registry.getRoutes(pair);
+
+        assertEq(1, routes.length);
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            // The last exchange path now has the same index as the removed index.
+            assertEq(address(routes[removeIndex][i]), address(lastPath[i]));
+        }
+    }
+
+    function testRemoveRouteLastIndex() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        IPath[][] memory routes = registry.getRoutes(pair);
+        uint256 lastIndex = routes.length - 1;
+        uint256 removeIndex = lastIndex;
+        IPath[] memory lastPath = routes[lastIndex];
+
+        assertEq(2, routes.length);
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit RemoveRoute(pair, removeIndex);
+
+        registry.removeRoute(pair, removeIndex);
+
+        routes = registry.getRoutes(pair);
+        lastIndex = routes.length - 1;
+
+        assertEq(1, routes.length);
+
+        for (uint256 i = 0; i < lastPath.length; ++i) {
+            // The old last exchange path and the current last exchange path should not be equal.
+            assertTrue(address(lastPath[i]) != address(routes[lastIndex][i]));
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
                              approvePath
     //////////////////////////////////////////////////////////////*/
 
@@ -137,7 +246,7 @@ contract PathRegistryTest is Test {
         uint256 outerPathIndex = 0;
         uint256 innerPathIndex = 0;
         IPath path = IPath(
-            registry.getPaths(pair)[outerPathIndex][innerPathIndex]
+            registry.getRoutes(pair)[outerPathIndex][innerPathIndex]
         );
         address[] memory tokens = path.tokens();
 
@@ -178,10 +287,10 @@ contract PathRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                             addPath
+                             addRoute
     //////////////////////////////////////////////////////////////*/
 
-    function testCannotAddPathUnauthorized() external {
+    function testCannotAddRouteUnauthorized() external {
         address unauthorizedMsgSender = address(1);
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory interfaces = new IPath[](2);
@@ -191,10 +300,10 @@ contract PathRegistryTest is Test {
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.addPath(pair, interfaces);
+        registry.addRoute(pair, interfaces);
     }
 
-    function testCannotAddPathInvalidPair() external {
+    function testCannotAddRouteInvalidPair() external {
         address msgSender = registry.owner();
         bytes32 invalidTokenPair = bytes32(0);
         IPath[] memory interfaces = new IPath[](2);
@@ -204,10 +313,10 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectRevert(PathRegistry.InvalidPair.selector);
 
-        registry.addPath(invalidTokenPair, interfaces);
+        registry.addRoute(invalidTokenPair, interfaces);
     }
 
-    function testCannotAddPathEmptyArray() external {
+    function testCannotAddRouteEmptyArray() external {
         address msgSender = registry.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory emptyInterfaces = new IPath[](0);
@@ -217,10 +326,10 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectRevert(PathRegistry.EmptyArray.selector);
 
-        registry.addPath(pair, emptyInterfaces);
+        registry.addRoute(pair, emptyInterfaces);
     }
 
-    function testAddPath() external {
+    function testAddRoute() external {
         address msgSender = registry.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory interfaces = new IPath[](2);
@@ -230,7 +339,7 @@ contract PathRegistryTest is Test {
         interfaces[1] = IPath(
             uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
-        uint256 addIndex = registry.getPaths(pair).length;
+        uint256 addIndex = registry.getRoutes(pair).length;
         address[] memory curveCRVUSDUSDCTokens = IPath(interfaces[0]).tokens();
         address[] memory uniswapUSDCETH = IPath(interfaces[1]).tokens();
 
@@ -239,11 +348,11 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(registry));
 
-        emit AddPath(pair, addIndex);
+        emit AddRoute(pair, addIndex);
 
-        registry.addPath(pair, interfaces);
+        registry.addRoute(pair, interfaces);
 
-        IPath[][] memory exchangePaths = registry.getPaths(pair);
+        IPath[][] memory exchangePaths = registry.getRoutes(pair);
 
         assertEq(1, exchangePaths.length);
 

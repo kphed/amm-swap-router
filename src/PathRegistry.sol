@@ -14,14 +14,14 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     uint256 private constant _FEE_DEDUCTED = 9_990;
     uint256 private constant _FEE_BASE = 10_000;
 
-    mapping(bytes32 pair => IPath[][] path) public exchangePaths;
+    mapping(bytes32 pair => IPath[][] path) private _paths;
 
     event WithdrawERC20(
         address indexed token,
         address indexed recipient,
         uint256 amount
     );
-    event AddExchangePath(bytes32 indexed pair, uint256 indexed index);
+    event AddPath(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(IPath indexed path, address[] tokens);
 
     error InsufficientOutput();
@@ -44,7 +44,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         token.safeTransfer(recipient, amount);
     }
 
-    function addExchangePath(
+    function addPath(
         bytes32 pair,
         IPath[] calldata interfaces
     ) external onlyOwner {
@@ -54,14 +54,14 @@ contract PathRegistry is Ownable, ReentrancyGuard {
 
         if (interfacesLength == 0) revert EmptyArray();
 
-        IPath[][] storage _exchangePaths = exchangePaths[pair];
-        uint256 addIndex = _exchangePaths.length;
+        IPath[][] storage exchangePaths = _paths[pair];
+        uint256 addIndex = exchangePaths.length;
 
-        _exchangePaths.push();
+        exchangePaths.push();
 
-        IPath[] storage paths = _exchangePaths[addIndex];
+        IPath[] storage paths = exchangePaths[addIndex];
 
-        emit AddExchangePath(pair, addIndex);
+        emit AddPath(pair, addIndex);
 
         unchecked {
             for (uint256 i = 0; i < interfacesLength; ++i) {
@@ -86,7 +86,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         uint256 outerPathIndex,
         uint256 innerPathIndex
     ) external onlyOwner {
-        IPath path = exchangePaths[pair][outerPathIndex][innerPathIndex];
+        IPath path = _paths[pair][outerPathIndex][innerPathIndex];
         address[] memory tokens = path.tokens();
         uint256 tokensLength = tokens.length;
 
@@ -110,7 +110,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     ) external nonReentrant returns (uint256 output) {
         inputToken.safeTransferFrom(msg.sender, address(this), input);
 
-        IPath[] memory paths = exchangePaths[
+        IPath[] memory paths = _paths[
             keccak256(abi.encodePacked(inputToken, outputToken))
         ][index];
         uint256 pathsLength = paths.length;
@@ -139,13 +139,13 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         bytes32 pair,
         uint256 input
     ) external view returns (uint256 index, uint256 output) {
-        IPath[][] memory _exchangePaths = exchangePaths[pair];
-        uint256 exchangePathsLength = _exchangePaths.length;
+        IPath[][] memory exchangePaths = _paths[pair];
+        uint256 exchangePathsLength = exchangePaths.length;
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                IPath[] memory paths = _exchangePaths[i];
+                IPath[] memory paths = exchangePaths[i];
                 uint256 pathsLength = paths.length;
                 uint256 _input = input;
 
@@ -167,14 +167,14 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         bytes32 pair,
         uint256 output
     ) external view returns (uint256 index, uint256 input) {
-        IPath[][] memory _exchangePaths = exchangePaths[pair];
-        uint256 exchangePathsLength = _exchangePaths.length;
+        IPath[][] memory exchangePaths = _paths[pair];
+        uint256 exchangePathsLength = exchangePaths.length;
         output = output.mulDivUp(_FEE_BASE, _FEE_DEDUCTED);
 
         // Loop iterator variables are bound by exchange path list lengths and will not overflow.
         unchecked {
             for (uint256 i = 0; i < exchangePathsLength; ++i) {
-                IPath[] memory paths = _exchangePaths[i];
+                IPath[] memory paths = exchangePaths[i];
                 uint256 pathsLength = paths.length;
                 uint256 _output = output;
 
@@ -192,9 +192,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         }
     }
 
-    function getExchangePaths(
-        bytes32 pair
-    ) external view returns (IPath[][] memory) {
-        return exchangePaths[pair];
+    function getPaths(bytes32 pair) external view returns (IPath[][] memory) {
+        return _paths[pair];
     }
 }

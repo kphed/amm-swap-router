@@ -41,7 +41,7 @@ contract PathRegistryTest is Test {
         address indexed recipient,
         uint256 amount
     );
-    event AddExchangePath(bytes32 indexed pair, uint256 indexed index);
+    event AddPath(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(IPath indexed path, address[] tokens);
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
@@ -74,7 +74,7 @@ contract PathRegistryTest is Test {
             uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
 
-        registry.addExchangePath(crvUSDETH, interfaces);
+        registry.addPath(crvUSDETH, interfaces);
 
         interfaces[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
@@ -83,7 +83,7 @@ contract PathRegistryTest is Test {
             uniswapV3Factory.create(UNISWAP_USDT_ETH, USDT, false)
         );
 
-        registry.addExchangePath(crvUSDETH, interfaces);
+        registry.addPath(crvUSDETH, interfaces);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -137,7 +137,7 @@ contract PathRegistryTest is Test {
         uint256 outerPathIndex = 0;
         uint256 innerPathIndex = 0;
         IPath path = IPath(
-            registry.getExchangePaths(pair)[outerPathIndex][innerPathIndex]
+            registry.getPaths(pair)[outerPathIndex][innerPathIndex]
         );
         address[] memory tokens = path.tokens();
 
@@ -178,10 +178,10 @@ contract PathRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                             addExchangePath
+                             addPath
     //////////////////////////////////////////////////////////////*/
 
-    function testCannotAddExchangePathUnauthorized() external {
+    function testCannotAddPathUnauthorized() external {
         address unauthorizedMsgSender = address(1);
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory interfaces = new IPath[](2);
@@ -191,10 +191,10 @@ contract PathRegistryTest is Test {
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.addExchangePath(pair, interfaces);
+        registry.addPath(pair, interfaces);
     }
 
-    function testCannotAddExchangePathInvalidPair() external {
+    function testCannotAddPathInvalidPair() external {
         address msgSender = registry.owner();
         bytes32 invalidTokenPair = bytes32(0);
         IPath[] memory interfaces = new IPath[](2);
@@ -204,10 +204,10 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectRevert(PathRegistry.InvalidPair.selector);
 
-        registry.addExchangePath(invalidTokenPair, interfaces);
+        registry.addPath(invalidTokenPair, interfaces);
     }
 
-    function testCannotAddExchangePathEmptyArray() external {
+    function testCannotAddPathEmptyArray() external {
         address msgSender = registry.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory emptyInterfaces = new IPath[](0);
@@ -217,10 +217,10 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectRevert(PathRegistry.EmptyArray.selector);
 
-        registry.addExchangePath(pair, emptyInterfaces);
+        registry.addPath(pair, emptyInterfaces);
     }
 
-    function testAddExchangePath() external {
+    function testAddPath() external {
         address msgSender = registry.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory interfaces = new IPath[](2);
@@ -230,7 +230,7 @@ contract PathRegistryTest is Test {
         interfaces[1] = IPath(
             uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
-        uint256 addIndex = registry.getExchangePaths(pair).length;
+        uint256 addIndex = registry.getPaths(pair).length;
         address[] memory curveCRVUSDUSDCTokens = IPath(interfaces[0]).tokens();
         address[] memory uniswapUSDCETH = IPath(interfaces[1]).tokens();
 
@@ -239,11 +239,11 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(registry));
 
-        emit AddExchangePath(pair, addIndex);
+        emit AddPath(pair, addIndex);
 
-        registry.addExchangePath(pair, interfaces);
+        registry.addPath(pair, interfaces);
 
-        IPath[][] memory exchangePaths = registry.getExchangePaths(pair);
+        IPath[][] memory exchangePaths = registry.getPaths(pair);
 
         assertEq(1, exchangePaths.length);
 

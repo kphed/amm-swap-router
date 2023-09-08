@@ -27,7 +27,6 @@ contract PathRegistry is Ownable, ReentrancyGuard {
 
     error InsufficientOutput();
     error RemoveIndexOOB();
-    error PoolDoesNotExist();
     error InvalidPair();
     error EmptyArray();
 

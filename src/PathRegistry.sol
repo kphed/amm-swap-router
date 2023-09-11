@@ -27,12 +27,11 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(
         IPath indexed path,
-        uint256 indexed routeIndex,
-        uint256 indexed pathIndex
+        address indexed inputToken,
+        address indexed outputToken
     );
 
     error InsufficientOutput();
-    error RemoveIndexOOB();
     error InvalidPair();
     error EmptyArray();
 
@@ -98,6 +97,11 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Remove a route.
+     * @param  pair   bytes32  Token pair.
+     * @param  index  uint256  Route index.
+     */
     function removeRoute(bytes32 pair, uint256 index) external onlyOwner {
         if (pair == bytes32(0)) revert InvalidPair();
 
@@ -115,6 +119,12 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         emit RemoveRoute(pair, index);
     }
 
+    /**
+     * @notice Approve a path contract to transfer our tokens.
+     * @param  pair        bytes32  Token pair.
+     * @param  routeIndex  uint256  Route index.
+     * @param  pathIndex   uint256  Path index.
+     */
     function approvePath(
         bytes32 pair,
         uint256 routeIndex,
@@ -123,12 +133,21 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         IPath path = _routes[pair][routeIndex][pathIndex];
         (address inputToken, address outputToken) = path.tokens();
 
-        emit ApprovePath(path, routeIndex, pathIndex);
+        emit ApprovePath(path, inputToken, outputToken);
 
         inputToken.safeApproveWithRetry(address(path), type(uint256).max);
         outputToken.safeApproveWithRetry(address(path), type(uint256).max);
     }
 
+    /**
+     * @notice Swap an input token for an output token over a series of paths.
+     * @param  inputToken   address  Token to swap.
+     * @param  outputToken  address  Token to receive.
+     * @param  input        uint256  Amount of input token to swap.
+     * @param  minOutput    uint256  Minimum amount of output token to receive.
+     * @param  routeIndex   uint256  Route index.
+     * @return output       uint256  Amount of output token received from the swap.
+     */
     function swap(
         address inputToken,
         address outputToken,
@@ -152,11 +171,12 @@ contract PathRegistry is Ownable, ReentrancyGuard {
             }
         }
 
-        // Prevent any chance of a malicious path rugging by evaluating the output token balance diff.
+        // Using the balance difference allows us to prevent malicious paths from stealing funds.
         output = outputToken.balanceOf(address(this)) - output;
 
         if (output < minOutput) revert InsufficientOutput();
 
+        // Calculate the output amount with fees applied.
         output = output.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
 
         // If the post-fee amount is less than the minimum, transfer the minimum to the swapper,
@@ -166,6 +186,13 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         outputToken.safeTransfer(msg.sender, output);
     }
 
+    /**
+     * @notice Get the swap outputs for each of the routes for a given token pair and return the best one.
+     * @param  pair    bytes32  Token pair.
+     * @param  input   uint256  Amount of input token to swap.
+     * @return index   uint256  Route index with the highest output.
+     * @return output  uint256  Amount of output token received from the swap.
+     */
     function getSwapOutput(
         bytes32 pair,
         uint256 input
@@ -173,7 +200,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         IPath[][] memory routes = _routes[pair];
         uint256 routesLength = routes.length;
 
-        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        // Bound by routes length and will not overflow.
         unchecked {
             for (uint256 i = 0; i < routesLength; ++i) {
                 IPath[] memory route = routes[i];
@@ -191,9 +218,17 @@ contract PathRegistry is Ownable, ReentrancyGuard {
             }
         }
 
+        // Apply fees.
         output = output.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
     }
 
+    /**
+     * @notice Get the swap inputs for each of the routes and return the best one.
+     * @param  pair    bytes32  Token pair.
+     * @param  output  uint256  Amount of output token received from the swap.
+     * @return index   uint256  Route index with the lowest input.
+     * @return input   uint256  Amount of input token to swap.
+     */
     function getSwapInput(
         bytes32 pair,
         uint256 output
@@ -202,7 +237,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         uint256 routesLength = routes.length;
         output = output.mulDivUp(_FEE_BASE, _FEE_DEDUCTED);
 
-        // Loop iterator variables are bound by exchange path list lengths and will not overflow.
+        // Bound by routes length and will not overflow.
         unchecked {
             for (uint256 i = 0; i < routesLength; ++i) {
                 IPath[] memory route = routes[i];
@@ -223,6 +258,11 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Get routes for a pair.
+     * @param  pair  bytes32  Token pair.
+     * @return       IPath[]  Routes and paths.
+     */
     function getRoutes(bytes32 pair) external view returns (IPath[][] memory) {
         return _routes[pair];
     }

@@ -10,6 +10,8 @@ interface IUniswapV3 {
 
     function token1() external view returns (address);
 
+    function fee() external view returns (uint24);
+
     function quote(
         address poolAddress,
         bool zeroForOne,
@@ -44,6 +46,7 @@ contract UniswapV3 is Clone, IPath {
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
 
     error UnauthorizedCaller();
+    error FaultySwap();
 
     function _pool() private pure returns (address) {
         return _getArgAddress(_OFFSET_POOL);
@@ -70,12 +73,8 @@ contract UniswapV3 is Clone, IPath {
         return _getArgUint160(_OFFSET_SQRT_PRICE_LIMIT);
     }
 
-    function _encodeSwapData() private view returns (bytes memory) {
-        return abi.encode(msg.sender, _getArgAddress(_OFFSET_INPUT_TOKEN));
-    }
-
     function pool() external pure returns (address) {
-        return _getArgAddress(_OFFSET_POOL);
+        return _pool();
     }
 
     function tokens() external pure returns (address, address) {
@@ -113,7 +112,7 @@ contract UniswapV3 is Clone, IPath {
             zeroForOne,
             int256(amount),
             _sqrtPriceLimit(),
-            _encodeSwapData()
+            abi.encode(msg.sender)
         );
 
         return zeroForOne ? uint256(-amount1) : uint256(-amount0);
@@ -124,25 +123,15 @@ contract UniswapV3 is Clone, IPath {
         int256 amount1Delta,
         bytes calldata data
     ) external {
+        // Only a Uniswap V3 factory-deployed pool can call this method.
         if (msg.sender != _pool()) revert UnauthorizedCaller();
 
-        (address payer, address inputToken) = abi.decode(
-            data,
-            (address, address)
-        );
+        address payer = abi.decode(data, (address));
+        int256 payment = _zeroForOne() ? amount0Delta : amount1Delta;
+        int256 received = _zeroForOne() ? amount1Delta : amount0Delta;
 
-        if (amount0Delta > 0) {
-            inputToken.safeTransferFrom(
-                payer,
-                msg.sender,
-                uint256(amount0Delta)
-            );
-        } else if (amount1Delta > 0) {
-            inputToken.safeTransferFrom(
-                payer,
-                msg.sender,
-                uint256(amount1Delta)
-            );
-        }
+        if (payment <= 0 || received >= 0) revert FaultySwap();
+
+        _inputToken().safeTransferFrom(payer, msg.sender, uint256(payment));
     }
 }

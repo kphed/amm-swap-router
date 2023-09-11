@@ -13,7 +13,6 @@ contract CurveStableSwapFactory {
         uint48 outputTokenIndex
     ) external returns (address poolInterface) {
         ICurveStableSwap poolContract = ICurveStableSwap(pool);
-
         poolInterface = LibClone.clone(
             implementation,
             abi.encodePacked(

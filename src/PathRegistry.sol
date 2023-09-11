@@ -73,8 +73,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
 
         if (newRouteLength == 0) revert EmptyArray();
 
-        IPath[][] storage routes = _routes[pair];
-        IPath[] storage route = routes.push();
+        IPath[] storage route = _routes[pair].push();
 
         emit AddRoute(pair, newRoute);
 

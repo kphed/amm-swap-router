@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {LibClone} from "solady/utils/LibClone.sol";
-import {UniswapV3} from "src/paths/UniswapV3.sol";
+import {IUniswapV3, UniswapV3} from "src/paths/UniswapV3.sol";
 
 contract UniswapV3Factory {
     uint160 private constant _MIN_SQRT_RATIO = 4295128740;
@@ -13,19 +13,18 @@ contract UniswapV3Factory {
 
     function create(
         address pool,
-        address inputToken,
         bool zeroForOne
     ) external returns (address poolInterface) {
+        IUniswapV3 poolContract = IUniswapV3(pool);
         poolInterface = LibClone.clone(
             implementation,
             abi.encodePacked(
                 pool,
-                inputToken,
+                zeroForOne ? poolContract.token0() : poolContract.token1(),
+                zeroForOne ? poolContract.token1() : poolContract.token0(),
                 keccak256(abi.encodePacked(zeroForOne)),
                 zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
             )
         );
-
-        UniswapV3(poolInterface).initialize();
     }
 }

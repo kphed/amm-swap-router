@@ -35,12 +35,13 @@ contract CurveStableSwap is Clone, IPath {
     uint256 private constant _OFFSET_POOL = 0;
     uint256 private constant _OFFSET_INPUT_TOKEN_INDEX = 20;
     uint256 private constant _OFFSET_OUTPUT_TOKEN_INDEX = 26;
+    uint256 private constant _OFFSET_INPUT_TOKEN = 32;
+    uint256 private constant _OFFSET_OUTPUT_TOKEN = 52;
 
     // Slippage should be handled by the caller.
     uint256 private constant _MIN_SWAP_AMOUNT = 1;
 
     bool private _initialized = false;
-    address[] private _tokens;
 
     error AlreadyInitialized();
 
@@ -48,24 +49,16 @@ contract CurveStableSwap is Clone, IPath {
         if (_initialized) revert AlreadyInitialized();
 
         _initialized = true;
-        uint256 index = 0;
-        ICurveStableSwap curveStableSwapPool = _pool();
+        address curveStableSwapPool = address(_pool());
 
-        while (true) {
-            try curveStableSwapPool.coins(index) returns (address token) {
-                _tokens.push(token);
-                token.safeApproveWithRetry(
-                    address(curveStableSwapPool),
-                    type(uint256).max
-                );
-
-                unchecked {
-                    ++index;
-                }
-            } catch {
-                return;
-            }
-        }
+        _inputToken().safeApproveWithRetry(
+            curveStableSwapPool,
+            type(uint256).max
+        );
+        _outputToken().safeApproveWithRetry(
+            curveStableSwapPool,
+            type(uint256).max
+        );
     }
 
     function _pool() private pure returns (ICurveStableSwap) {
@@ -80,25 +73,27 @@ contract CurveStableSwap is Clone, IPath {
         return int48(_getArgUint48(_OFFSET_OUTPUT_TOKEN_INDEX));
     }
 
+    function _inputToken() private pure returns (address) {
+        return _getArgAddress(_OFFSET_INPUT_TOKEN);
+    }
+
+    function _outputToken() private pure returns (address) {
+        return _getArgAddress(_OFFSET_OUTPUT_TOKEN);
+    }
+
     function approveSpenders() external {
         address poolAddr = address(_pool());
-        uint256 tokensLength = _tokens.length;
 
-        for (uint256 i = 0; i < tokensLength; ) {
-            _tokens[i].safeApproveWithRetry(poolAddr, type(uint256).max);
-
-            unchecked {
-                ++i;
-            }
-        }
+        _inputToken().safeApproveWithRetry(poolAddr, type(uint256).max);
+        _outputToken().safeApproveWithRetry(poolAddr, type(uint256).max);
     }
 
     function pool() external pure returns (address) {
         return _getArgAddress(_OFFSET_POOL);
     }
 
-    function tokens() external view returns (address[] memory) {
-        return _tokens;
+    function tokens() external pure returns (address, address) {
+        return (_inputToken(), _outputToken());
     }
 
     function quoteTokenOutput(uint256 amount) external view returns (uint256) {
@@ -110,14 +105,11 @@ contract CurveStableSwap is Clone, IPath {
     }
 
     function swap(uint256 amount) external returns (uint256) {
-        int48 inputTokenIndex = _inputTokenIndex();
-        address token = _tokens[uint256(int256(inputTokenIndex))];
-
-        token.safeTransferFrom(msg.sender, address(this), amount);
+        _inputToken().safeTransferFrom(msg.sender, address(this), amount);
 
         return
             _pool().exchange(
-                inputTokenIndex,
+                _inputTokenIndex(),
                 _outputTokenIndex(),
                 amount,
                 _MIN_SWAP_AMOUNT,

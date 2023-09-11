@@ -31,9 +31,10 @@ contract UniswapV3 is Clone, IPath {
 
     uint256 private constant _OFFSET_POOL = 0;
     uint256 private constant _OFFSET_INPUT_TOKEN = 20;
-    uint256 private constant _OFFSET_ZERO_FOR_ONE = 40;
+    uint256 private constant _OFFSET_OUTPUT_TOKEN = 40;
+    uint256 private constant _OFFSET_ZERO_FOR_ONE = 60;
     uint256 private constant _OFFSET_ZERO_FOR_ONE_LENGTH = 32;
-    uint256 private constant _OFFSET_SQRT_PRICE_LIMIT = 72;
+    uint256 private constant _OFFSET_SQRT_PRICE_LIMIT = 92;
 
     // keccak256(abi.encodePacked(true)).
     bytes32 private constant _TRUE =
@@ -42,24 +43,18 @@ contract UniswapV3 is Clone, IPath {
     IUniswapV3 private constant _QUOTER =
         IUniswapV3(0xc80f61d1bdAbD8f5285117e1558fDDf8C64870FE);
 
-    bool private _initialized = false;
-    address[] private _tokens;
-
-    error AlreadyInitialized();
     error UnauthorizedCaller();
-
-    function initialize() external {
-        if (_initialized) revert AlreadyInitialized();
-
-        _initialized = true;
-        IUniswapV3 uniswapV3Pool = IUniswapV3(_pool());
-
-        _tokens.push(uniswapV3Pool.token0());
-        _tokens.push(uniswapV3Pool.token1());
-    }
 
     function _pool() private pure returns (address) {
         return _getArgAddress(_OFFSET_POOL);
+    }
+
+    function _inputToken() private pure returns (address) {
+        return _getArgAddress(_OFFSET_INPUT_TOKEN);
+    }
+
+    function _outputToken() private pure returns (address) {
+        return _getArgAddress(_OFFSET_OUTPUT_TOKEN);
     }
 
     function _zeroForOne() private pure returns (bool) {
@@ -83,8 +78,8 @@ contract UniswapV3 is Clone, IPath {
         return _getArgAddress(_OFFSET_POOL);
     }
 
-    function tokens() external view returns (address[] memory) {
-        return _tokens;
+    function tokens() external pure returns (address, address) {
+        return (_inputToken(), _outputToken());
     }
 
     function quoteTokenOutput(uint256 amount) external view returns (uint256) {

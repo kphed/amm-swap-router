@@ -4,7 +4,10 @@ pragma solidity 0.8.19;
 interface IPath {
     function pool() external pure returns (address);
 
-    function tokens() external view returns (address[] memory);
+    function tokens()
+        external
+        view
+        returns (address inputToken, address outputToken);
 
     function quoteTokenOutput(uint256 amount) external view returns (uint256);
 

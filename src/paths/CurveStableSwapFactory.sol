@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {LibClone} from "solady/utils/LibClone.sol";
-import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
+import {ICurveStableSwap, CurveStableSwap} from "src/paths/CurveStableSwap.sol";
 
 contract CurveStableSwapFactory {
     address public immutable implementation = address(new CurveStableSwap());
@@ -12,9 +12,17 @@ contract CurveStableSwapFactory {
         uint48 inputTokenIndex,
         uint48 outputTokenIndex
     ) external returns (address poolInterface) {
+        ICurveStableSwap poolContract = ICurveStableSwap(pool);
+
         poolInterface = LibClone.clone(
             implementation,
-            abi.encodePacked(pool, inputTokenIndex, outputTokenIndex)
+            abi.encodePacked(
+                pool,
+                inputTokenIndex,
+                outputTokenIndex,
+                poolContract.coins(uint256(inputTokenIndex)),
+                poolContract.coins(uint256(outputTokenIndex))
+            )
         );
 
         CurveStableSwap(poolInterface).initialize();

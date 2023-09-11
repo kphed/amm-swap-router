@@ -43,8 +43,11 @@ contract PathRegistryTest is Test {
     );
     event AddRoute(bytes32 indexed pair, IPath[] newRoute);
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
-    event ApprovePath(IPath indexed path, address[] tokens);
-    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event ApprovePath(
+        IPath indexed path,
+        uint256 indexed routeIndex,
+        uint256 indexed pathIndex
+    );
 
     receive() external payable {}
 
@@ -71,35 +74,27 @@ contract PathRegistryTest is Test {
         routes[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
-        routes[1] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
-        );
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
 
         registry.addRoute(crvUSDETH, routes);
 
         routes[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
         );
-        routes[1] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDT_ETH, USDT, false)
-        );
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, false));
 
         registry.addRoute(crvUSDETH, routes);
 
         bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
 
-        routes[0] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, WETH, false)
-        );
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, false));
         routes[1] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
         );
 
         registry.addRoute(ethCRVUSD, routes);
 
-        routes[0] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDT_ETH, WETH, true)
-        );
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, true));
         routes[1] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
         );
@@ -197,12 +192,16 @@ contract PathRegistryTest is Test {
         newRoute[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
-        newRoute[1] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
-        );
+        newRoute[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
         uint256 addIndex = registry.getRoutes(pair).length;
-        address[] memory curveCRVUSDUSDCTokens = IPath(newRoute[0]).tokens();
-        address[] memory uniswapUSDCETH = IPath(newRoute[1]).tokens();
+        (
+            address curveCRVUSDUSDCInputToken,
+            address curveCRVUSDUSDCOutputToken
+        ) = IPath(newRoute[0]).tokens();
+        (
+            address uniswapUSDCETHInputToken,
+            address uniswapUSDCETHOutputToken
+        ) = IPath(newRoute[1]).tokens();
 
         assertEq(0, addIndex);
 
@@ -225,25 +224,34 @@ contract PathRegistryTest is Test {
             assertEq(address(newRoute[i]), address(route[i]));
         }
 
-        for (uint256 i = 0; i < curveCRVUSDUSDCTokens.length; ++i) {
-            assertEq(
-                type(uint256).max,
-                ERC20(curveCRVUSDUSDCTokens[i]).allowance(
-                    address(registry),
-                    address(newRoute[0])
-                )
-            );
-        }
-
-        for (uint256 i = 0; i < uniswapUSDCETH.length; ++i) {
-            assertEq(
-                type(uint256).max,
-                ERC20(uniswapUSDCETH[i]).allowance(
-                    address(registry),
-                    address(newRoute[1])
-                )
-            );
-        }
+        assertEq(
+            type(uint256).max,
+            ERC20(curveCRVUSDUSDCInputToken).allowance(
+                address(registry),
+                address(newRoute[0])
+            )
+        );
+        assertEq(
+            type(uint256).max,
+            ERC20(curveCRVUSDUSDCOutputToken).allowance(
+                address(registry),
+                address(newRoute[0])
+            )
+        );
+        assertEq(
+            type(uint256).max,
+            ERC20(uniswapUSDCETHInputToken).allowance(
+                address(registry),
+                address(newRoute[1])
+            )
+        );
+        assertEq(
+            type(uint256).max,
+            ERC20(uniswapUSDCETHOutputToken).allowance(
+                address(registry),
+                address(newRoute[1])
+            )
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -362,29 +370,33 @@ contract PathRegistryTest is Test {
         _setUpPools();
 
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        uint256 outerPathIndex = 0;
-        uint256 innerPathIndex = 0;
-        IPath path = IPath(
-            registry.getRoutes(pair)[outerPathIndex][innerPathIndex]
-        );
-        address[] memory tokens = path.tokens();
+        uint256 routeIndex = 0;
+        uint256 pathIndex = 0;
+        IPath path = IPath(registry.getRoutes(pair)[routeIndex][pathIndex]);
+        (address inputToken, address outputToken) = path.tokens();
 
         vm.startPrank(address(registry));
 
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            assertEq(
-                type(uint256).max,
-                ERC20(tokens[i]).allowance(address(registry), address(path))
-            );
+        assertEq(
+            type(uint256).max,
+            ERC20(inputToken).allowance(address(registry), address(path))
+        );
+        assertEq(
+            type(uint256).max,
+            ERC20(outputToken).allowance(address(registry), address(path))
+        );
 
-            // Set the registry's allowances to zero for the pool's tokens.
-            tokens[i].safeApproveWithRetry(address(path), 0);
+        inputToken.safeApproveWithRetry(address(path), 0);
+        outputToken.safeApproveWithRetry(address(path), 0);
 
-            assertEq(
-                0,
-                ERC20(tokens[i]).allowance(address(registry), address(path))
-            );
-        }
+        assertEq(
+            0,
+            ERC20(inputToken).allowance(address(registry), address(path))
+        );
+        assertEq(
+            0,
+            ERC20(outputToken).allowance(address(registry), address(path))
+        );
 
         vm.stopPrank();
 
@@ -393,16 +405,18 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectEmit(true, false, false, true, address(registry));
 
-        emit ApprovePath(path, tokens);
+        emit ApprovePath(path, routeIndex, pathIndex);
 
-        registry.approvePath(pair, outerPathIndex, innerPathIndex);
+        registry.approvePath(pair, routeIndex, pathIndex);
 
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            assertEq(
-                type(uint256).max,
-                ERC20(tokens[i]).allowance(address(registry), address(path))
-            );
-        }
+        assertEq(
+            type(uint256).max,
+            ERC20(inputToken).allowance(address(registry), address(path))
+        );
+        assertEq(
+            type(uint256).max,
+            ERC20(outputToken).allowance(address(registry), address(path))
+        );
     }
 
     /*//////////////////////////////////////////////////////////////

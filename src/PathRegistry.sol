@@ -25,7 +25,11 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     );
     event AddRoute(bytes32 indexed pair, IPath[] newRoute);
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
-    event ApprovePath(IPath indexed path, address[] tokens);
+    event ApprovePath(
+        IPath indexed path,
+        uint256 indexed routeIndex,
+        uint256 indexed pathIndex
+    );
 
     error InsufficientOutput();
     error RemoveIndexOOB();
@@ -78,17 +82,18 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         unchecked {
             for (uint256 i = 0; i < newRouteLength; ++i) {
                 IPath path = newRoute[i];
-                address[] memory tokens = path.tokens();
-                uint256 tokensLength = tokens.length;
+                (address inputToken, address outputToken) = path.tokens();
 
                 route.push(path);
 
-                for (uint256 j = 0; j < tokensLength; ++j) {
-                    tokens[j].safeApproveWithRetry(
-                        address(path),
-                        type(uint256).max
-                    );
-                }
+                inputToken.safeApproveWithRetry(
+                    address(path),
+                    type(uint256).max
+                );
+                outputToken.safeApproveWithRetry(
+                    address(path),
+                    type(uint256).max
+                );
             }
         }
     }
@@ -116,18 +121,12 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         uint256 pathIndex
     ) external onlyOwner {
         IPath path = _routes[pair][routeIndex][pathIndex];
-        address[] memory tokens = path.tokens();
-        uint256 tokensLength = tokens.length;
+        (address inputToken, address outputToken) = path.tokens();
 
-        emit ApprovePath(path, tokens);
+        emit ApprovePath(path, routeIndex, pathIndex);
 
-        for (uint256 i = 0; i < tokensLength; ) {
-            tokens[i].safeApproveWithRetry(address(path), type(uint256).max);
-
-            unchecked {
-                ++i;
-            }
-        }
+        inputToken.safeApproveWithRetry(address(path), type(uint256).max);
+        outputToken.safeApproveWithRetry(address(path), type(uint256).max);
     }
 
     function swap(

@@ -45,10 +45,10 @@ contract PathRegistryScript is Script {
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
         crvUSDETHPools[1] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
+            uniswapV3Factory.create(UNISWAP_USDC_ETH, true)
         );
         ethCRVUSDPools[0] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, WETH, false)
+            uniswapV3Factory.create(UNISWAP_USDC_ETH, false)
         );
         ethCRVUSDPools[1] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)

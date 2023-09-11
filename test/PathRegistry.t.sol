@@ -45,8 +45,8 @@ contract PathRegistryTest is Test {
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(
         IPath indexed path,
-        uint256 indexed routeIndex,
-        uint256 indexed pathIndex
+        address indexed inputToken,
+        address indexed outputToken
     );
 
     receive() external payable {}
@@ -405,7 +405,7 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectEmit(true, false, false, true, address(registry));
 
-        emit ApprovePath(path, routeIndex, pathIndex);
+        emit ApprovePath(path, inputToken, outputToken);
 
         registry.approvePath(pair, routeIndex, pathIndex);
 

@@ -43,22 +43,27 @@ contract CurveStableSwap is Clone, IPath {
 
     bool private _initialized = false;
 
+    event Initialized(
+        address indexed msgSender,
+        address indexed pool,
+        address inputToken,
+        address outputToken
+    );
+
     error AlreadyInitialized();
 
     function initialize() external {
         if (_initialized) revert AlreadyInitialized();
 
         _initialized = true;
-        address curveStableSwapPool = address(_pool());
+        address poolAddr = address(_pool());
+        address inputToken = _inputToken();
+        address outputToken = _outputToken();
 
-        _inputToken().safeApproveWithRetry(
-            curveStableSwapPool,
-            type(uint256).max
-        );
-        _outputToken().safeApproveWithRetry(
-            curveStableSwapPool,
-            type(uint256).max
-        );
+        emit Initialized(msg.sender, poolAddr, inputToken, outputToken);
+
+        inputToken.safeApproveWithRetry(poolAddr, type(uint256).max);
+        outputToken.safeApproveWithRetry(poolAddr, type(uint256).max);
     }
 
     function _pool() private pure returns (ICurveStableSwap) {

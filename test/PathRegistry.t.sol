@@ -41,7 +41,7 @@ contract PathRegistryTest is Test {
         address indexed recipient,
         uint256 amount
     );
-    event AddRoute(bytes32 indexed pair, uint256 indexed index);
+    event AddRoute(bytes32 indexed pair, IPath[] newRoute);
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(IPath indexed path, address[] tokens);
     event Transfer(address indexed from, address indexed to, uint256 amount);
@@ -313,75 +313,75 @@ contract PathRegistryTest is Test {
     function testCannotAddRouteUnauthorized() external {
         address unauthorizedMsgSender = address(1);
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[] memory interfaces = new IPath[](2);
+        IPath[] memory newRoute = new IPath[](2);
 
         assertTrue(unauthorizedMsgSender != registry.owner());
 
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.addRoute(pair, interfaces);
+        registry.addRoute(pair, newRoute);
     }
 
     function testCannotAddRouteInvalidPair() external {
         address msgSender = registry.owner();
         bytes32 invalidTokenPair = bytes32(0);
-        IPath[] memory interfaces = new IPath[](2);
+        IPath[] memory newRoute = new IPath[](2);
 
         assertEq(bytes32(0), invalidTokenPair);
 
         vm.prank(msgSender);
         vm.expectRevert(PathRegistry.InvalidPair.selector);
 
-        registry.addRoute(invalidTokenPair, interfaces);
+        registry.addRoute(invalidTokenPair, newRoute);
     }
 
     function testCannotAddRouteEmptyArray() external {
         address msgSender = registry.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[] memory emptyInterfaces = new IPath[](0);
+        IPath[] memory emptyNewRoute = new IPath[](0);
 
-        assertEq(0, emptyInterfaces.length);
+        assertEq(0, emptyNewRoute.length);
 
         vm.prank(msgSender);
         vm.expectRevert(PathRegistry.EmptyArray.selector);
 
-        registry.addRoute(pair, emptyInterfaces);
+        registry.addRoute(pair, emptyNewRoute);
     }
 
     function testAddRoute() external {
         address msgSender = registry.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[] memory interfaces = new IPath[](2);
-        interfaces[0] = IPath(
+        IPath[] memory newRoute = new IPath[](2);
+        newRoute[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
-        interfaces[1] = IPath(
+        newRoute[1] = IPath(
             uniswapV3Factory.create(UNISWAP_USDC_ETH, USDC, true)
         );
         uint256 addIndex = registry.getRoutes(pair).length;
-        address[] memory curveCRVUSDUSDCTokens = IPath(interfaces[0]).tokens();
-        address[] memory uniswapUSDCETH = IPath(interfaces[1]).tokens();
+        address[] memory curveCRVUSDUSDCTokens = IPath(newRoute[0]).tokens();
+        address[] memory uniswapUSDCETH = IPath(newRoute[1]).tokens();
 
         assertEq(0, addIndex);
 
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(registry));
 
-        emit AddRoute(pair, addIndex);
+        emit AddRoute(pair, newRoute);
 
-        registry.addRoute(pair, interfaces);
+        registry.addRoute(pair, newRoute);
 
-        IPath[][] memory exchangePaths = registry.getRoutes(pair);
+        IPath[][] memory routes = registry.getRoutes(pair);
 
-        assertEq(1, exchangePaths.length);
+        assertEq(1, routes.length);
 
-        IPath[] memory _interfaces = exchangePaths[addIndex];
+        IPath[] memory route = routes[addIndex];
 
-        assertEq(interfaces.length, _interfaces.length);
+        assertEq(newRoute.length, route.length);
 
-        for (uint256 i = 0; i < interfaces.length; ++i) {
-            assertEq(address(interfaces[i]), address(_interfaces[i]));
+        for (uint256 i = 0; i < newRoute.length; ++i) {
+            assertEq(address(newRoute[i]), address(route[i]));
         }
 
         for (uint256 i = 0; i < curveCRVUSDUSDCTokens.length; ++i) {
@@ -389,7 +389,7 @@ contract PathRegistryTest is Test {
                 type(uint256).max,
                 ERC20(curveCRVUSDUSDCTokens[i]).allowance(
                     address(registry),
-                    address(interfaces[0])
+                    address(newRoute[0])
                 )
             );
         }
@@ -399,7 +399,7 @@ contract PathRegistryTest is Test {
                 type(uint256).max,
                 ERC20(uniswapUSDCETH[i]).allowance(
                     address(registry),
-                    address(interfaces[1])
+                    address(newRoute[1])
                 )
             );
         }

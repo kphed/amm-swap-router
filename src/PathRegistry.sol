@@ -11,9 +11,11 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
+    // Each swap incurs a 1 bps (0.01%) fee.
     uint256 private constant _FEE_DEDUCTED = 9_999;
     uint256 private constant _FEE_BASE = 10_000;
 
+    // Swap routes for a given token pair - each route is comprised of 1 or more paths.
     mapping(bytes32 pair => IPath[][] path) private _routes;
 
     event WithdrawERC20(
@@ -21,7 +23,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         address indexed recipient,
         uint256 amount
     );
-    event AddRoute(bytes32 indexed pair, uint256 indexed index);
+    event AddRoute(bytes32 indexed pair, IPath[] newRoute);
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(IPath indexed path, address[] tokens);
 
@@ -30,10 +32,19 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     error InvalidPair();
     error EmptyArray();
 
+    /**
+     * @param initialOwner  address  The initial owner of the contract.
+     */
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
     }
 
+    /**
+     * @notice Withdraw an ERC20 token from the contract.
+     * @param  token      address  Token to withdraw.
+     * @param  recipient  address  Recipient of the tokens.
+     * @param  amount     uint256  Token amount.
+     */
     function withdrawERC20(
         address token,
         address recipient,
@@ -44,6 +55,11 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         token.safeTransfer(recipient, amount);
     }
 
+    /**
+     * @notice Add a route.
+     * @param  pair      bytes32  Token pair.
+     * @param  newRoute  IPath[]  New swap route.
+     */
     function addRoute(
         bytes32 pair,
         IPath[] calldata newRoute
@@ -55,13 +71,9 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         if (newRouteLength == 0) revert EmptyArray();
 
         IPath[][] storage routes = _routes[pair];
-        uint256 index = routes.length;
+        IPath[] storage route = routes.push();
 
-        routes.push();
-
-        IPath[] storage route = routes[index];
-
-        emit AddRoute(pair, index);
+        emit AddRoute(pair, newRoute);
 
         unchecked {
             for (uint256 i = 0; i < newRouteLength; ++i) {

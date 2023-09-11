@@ -148,165 +148,6 @@ contract PathRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                             removeRoute
-    //////////////////////////////////////////////////////////////*/
-
-    function testCannotRemoveRouteUnauthorized() external {
-        address unauthorizedMsgSender = address(1);
-        bytes32 pair = _hashPair(CRVUSD, WETH);
-        uint256 removeIndex = 0;
-
-        assertTrue(unauthorizedMsgSender != registry.owner());
-
-        vm.prank(unauthorizedMsgSender);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-
-        registry.removeRoute(pair, removeIndex);
-    }
-
-    function testCannotRemoveRouteInvalidPair() external {
-        address msgSender = registry.owner();
-        bytes32 invalidTokenPair = bytes32(0);
-        uint256 removeIndex = 0;
-
-        vm.prank(msgSender);
-        vm.expectRevert(PathRegistry.InvalidPair.selector);
-
-        registry.removeRoute(invalidTokenPair, removeIndex);
-    }
-
-    function testCannotRemoveRouteRemovalIndex() external {
-        _setUpPools();
-
-        address msgSender = registry.owner();
-        bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[][] memory routes = registry.getRoutes(pair);
-        uint256 invalidRemoveIndex = routes.length + 1;
-
-        assertGt(invalidRemoveIndex, routes.length);
-
-        vm.prank(msgSender);
-        vm.expectRevert(PathRegistry.RemoveIndexOOB.selector);
-
-        registry.removeRoute(pair, invalidRemoveIndex);
-    }
-
-    function testRemoveRoute() external {
-        _setUpPools();
-
-        address msgSender = registry.owner();
-        bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[][] memory routes = registry.getRoutes(pair);
-        uint256 removeIndex = 0;
-        uint256 lastIndex = routes.length - 1;
-        IPath[] memory lastPath = routes[lastIndex];
-
-        assertTrue(removeIndex != lastIndex);
-        assertEq(2, routes.length);
-
-        for (uint256 i = 0; i < routes.length; ++i) {
-            assertTrue(address(routes[removeIndex][i]) != address(lastPath[i]));
-        }
-
-        vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
-
-        emit RemoveRoute(pair, removeIndex);
-
-        registry.removeRoute(pair, removeIndex);
-
-        routes = registry.getRoutes(pair);
-
-        assertEq(1, routes.length);
-
-        for (uint256 i = 0; i < routes.length; ++i) {
-            // The last exchange path now has the same index as the removed index.
-            assertEq(address(routes[removeIndex][i]), address(lastPath[i]));
-        }
-    }
-
-    function testRemoveRouteLastIndex() external {
-        _setUpPools();
-
-        address msgSender = registry.owner();
-        bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[][] memory routes = registry.getRoutes(pair);
-        uint256 lastIndex = routes.length - 1;
-        uint256 removeIndex = lastIndex;
-        IPath[] memory lastPath = routes[lastIndex];
-
-        assertEq(2, routes.length);
-
-        vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
-
-        emit RemoveRoute(pair, removeIndex);
-
-        registry.removeRoute(pair, removeIndex);
-
-        routes = registry.getRoutes(pair);
-        lastIndex = routes.length - 1;
-
-        assertEq(1, routes.length);
-
-        for (uint256 i = 0; i < lastPath.length; ++i) {
-            // The old last exchange path and the current last exchange path should not be equal.
-            assertTrue(address(lastPath[i]) != address(routes[lastIndex][i]));
-        }
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                             approvePath
-    //////////////////////////////////////////////////////////////*/
-
-    function testApprovePath() external {
-        _setUpPools();
-
-        bytes32 pair = _hashPair(CRVUSD, WETH);
-        uint256 outerPathIndex = 0;
-        uint256 innerPathIndex = 0;
-        IPath path = IPath(
-            registry.getRoutes(pair)[outerPathIndex][innerPathIndex]
-        );
-        address[] memory tokens = path.tokens();
-
-        vm.startPrank(address(registry));
-
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            assertEq(
-                type(uint256).max,
-                ERC20(tokens[i]).allowance(address(registry), address(path))
-            );
-
-            // Set the registry's allowances to zero for the pool's tokens.
-            tokens[i].safeApproveWithRetry(address(path), 0);
-
-            assertEq(
-                0,
-                ERC20(tokens[i]).allowance(address(registry), address(path))
-            );
-        }
-
-        vm.stopPrank();
-
-        address msgSender = address(this);
-
-        vm.prank(msgSender);
-        vm.expectEmit(true, false, false, true, address(registry));
-
-        emit ApprovePath(path, tokens);
-
-        registry.approvePath(pair, outerPathIndex, innerPathIndex);
-
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            assertEq(
-                type(uint256).max,
-                ERC20(tokens[i]).allowance(address(registry), address(path))
-            );
-        }
-    }
-
-    /*//////////////////////////////////////////////////////////////
                              addRoute
     //////////////////////////////////////////////////////////////*/
 
@@ -401,6 +242,165 @@ contract PathRegistryTest is Test {
                     address(registry),
                     address(newRoute[1])
                 )
+            );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             removeRoute
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotRemoveRouteUnauthorized() external {
+        address unauthorizedMsgSender = address(1);
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 index = 0;
+
+        assertTrue(unauthorizedMsgSender != registry.owner());
+
+        vm.prank(unauthorizedMsgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        registry.removeRoute(pair, index);
+    }
+
+    function testCannotRemoveRouteInvalidPair() external {
+        address msgSender = registry.owner();
+        bytes32 invalidTokenPair = bytes32(0);
+        uint256 index = 0;
+
+        vm.prank(msgSender);
+        vm.expectRevert(PathRegistry.InvalidPair.selector);
+
+        registry.removeRoute(invalidTokenPair, index);
+    }
+
+    function testCannotRemoveRouteIndexOOB() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        IPath[][] memory routes = registry.getRoutes(pair);
+        uint256 invalidIndex = routes.length + 1;
+
+        assertGt(invalidIndex, routes.length);
+
+        vm.prank(msgSender);
+        vm.expectRevert(stdError.indexOOBError);
+
+        registry.removeRoute(pair, invalidIndex);
+    }
+
+    function testRemoveRoute() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        IPath[][] memory routes = registry.getRoutes(pair);
+        uint256 index = 0;
+        uint256 lastIndex = routes.length - 1;
+        IPath[] memory lastRoute = routes[lastIndex];
+
+        assertTrue(index != lastIndex);
+        assertEq(2, routes.length);
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            assertTrue(address(routes[index][i]) != address(lastRoute[i]));
+        }
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit RemoveRoute(pair, index);
+
+        registry.removeRoute(pair, index);
+
+        routes = registry.getRoutes(pair);
+
+        assertEq(1, routes.length);
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            // The last exchange path now has the same index as the removed index.
+            assertEq(address(routes[index][i]), address(lastRoute[i]));
+        }
+    }
+
+    function testRemoveRouteLastIndex() external {
+        _setUpPools();
+
+        address msgSender = registry.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        IPath[][] memory routes = registry.getRoutes(pair);
+        uint256 lastIndex = routes.length - 1;
+        uint256 index = lastIndex;
+        IPath[] memory lastPath = routes[lastIndex];
+
+        assertEq(2, routes.length);
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, true, false, true, address(registry));
+
+        emit RemoveRoute(pair, index);
+
+        registry.removeRoute(pair, index);
+
+        routes = registry.getRoutes(pair);
+        lastIndex = routes.length - 1;
+
+        assertEq(1, routes.length);
+
+        for (uint256 i = 0; i < lastPath.length; ++i) {
+            // The old last exchange path and the current last exchange path should not be equal.
+            assertTrue(address(lastPath[i]) != address(routes[lastIndex][i]));
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             approvePath
+    //////////////////////////////////////////////////////////////*/
+
+    function testApprovePath() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 outerPathIndex = 0;
+        uint256 innerPathIndex = 0;
+        IPath path = IPath(
+            registry.getRoutes(pair)[outerPathIndex][innerPathIndex]
+        );
+        address[] memory tokens = path.tokens();
+
+        vm.startPrank(address(registry));
+
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            assertEq(
+                type(uint256).max,
+                ERC20(tokens[i]).allowance(address(registry), address(path))
+            );
+
+            // Set the registry's allowances to zero for the pool's tokens.
+            tokens[i].safeApproveWithRetry(address(path), 0);
+
+            assertEq(
+                0,
+                ERC20(tokens[i]).allowance(address(registry), address(path))
+            );
+        }
+
+        vm.stopPrank();
+
+        address msgSender = address(this);
+
+        vm.prank(msgSender);
+        vm.expectEmit(true, false, false, true, address(registry));
+
+        emit ApprovePath(path, tokens);
+
+        registry.approvePath(pair, outerPathIndex, innerPathIndex);
+
+        for (uint256 i = 0; i < tokens.length; ++i) {
+            assertEq(
+                type(uint256).max,
+                ERC20(tokens[i]).allowance(address(registry), address(path))
             );
         }
     }

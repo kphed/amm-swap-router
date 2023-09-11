@@ -99,11 +99,9 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         IPath[][] storage routes = _routes[pair];
         uint256 lastIndex = routes.length - 1;
 
-        // Throw if the removal index is for an element that doesn't exist.
-        if (index > lastIndex) revert RemoveIndexOOB();
-
         if (index != lastIndex) {
             // Set the last element to the removal index (the original will be removed).
+            // Throws if the removal index is GTE to the length of the array.
             routes[index] = routes[lastIndex];
         }
 

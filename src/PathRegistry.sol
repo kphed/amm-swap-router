@@ -186,7 +186,7 @@ contract PathRegistry is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Get the swap outputs for each of the routes for a given token pair and return the best one.
+     * @notice Get the best (highest) swap output for a given input amount.
      * @param  pair    bytes32  Token pair.
      * @param  input   uint256  Amount of input token to swap.
      * @return index   uint256  Route index with the highest output.
@@ -199,30 +199,28 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         IPath[][] memory routes = _routes[pair];
         uint256 routesLength = routes.length;
 
-        // Bound by routes length and will not overflow.
         unchecked {
             for (uint256 i = 0; i < routesLength; ++i) {
                 IPath[] memory route = routes[i];
                 uint256 routeLength = route.length;
-                uint256 _input = input;
+                uint256 quoteValue = input;
 
                 for (uint256 j = 0; j < routeLength; ++j) {
-                    _input = route[j].quoteTokenOutput(_input);
+                    quoteValue = route[j].quoteTokenOutput(quoteValue);
                 }
 
-                if (_input > output) {
+                if (quoteValue > output) {
                     index = i;
-                    output = _input;
+                    output = quoteValue;
                 }
             }
         }
 
-        // Apply fees.
         output = output.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
     }
 
     /**
-     * @notice Get the swap inputs for each of the routes and return the best one.
+     * @notice Get the best (lowest) swap input for a given output amount.
      * @param  pair    bytes32  Token pair.
      * @param  output  uint256  Amount of output token received from the swap.
      * @return index   uint256  Route index with the lowest input.
@@ -236,22 +234,23 @@ contract PathRegistry is Ownable, ReentrancyGuard {
         uint256 routesLength = routes.length;
         output = output.mulDivUp(_FEE_BASE, _FEE_DEDUCTED);
 
-        // Bound by routes length and will not overflow.
         unchecked {
             for (uint256 i = 0; i < routesLength; ++i) {
                 IPath[] memory route = routes[i];
-                uint256 routeLength = route.length;
-                uint256 _output = output;
+                uint256 routeIndex = route.length - 1;
+                uint256 quoteValue = output;
 
-                while (routeLength != 0) {
-                    --routeLength;
+                while (true) {
+                    quoteValue = route[routeIndex].quoteTokenInput(quoteValue);
 
-                    _output = route[routeLength].quoteTokenInput(_output);
+                    if (routeIndex == 0) break;
+
+                    --routeIndex;
                 }
 
-                if (_output < input || input == 0) {
+                if (quoteValue < input || input == 0) {
                     index = i;
-                    input = _output;
+                    input = quoteValue;
                 }
             }
         }

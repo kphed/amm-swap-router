@@ -69,14 +69,14 @@ contract PathRegistry is Ownable, ReentrancyGuard {
                 address[] memory tokens = path.tokens();
                 uint256 tokensLength = tokens.length;
 
+                route.push(path);
+
                 for (uint256 j = 0; j < tokensLength; ++j) {
                     tokens[j].safeApproveWithRetry(
                         address(path),
                         type(uint256).max
                     );
                 }
-
-                route.push(path);
             }
         }
     }

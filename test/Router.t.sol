@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
@@ -17,6 +18,7 @@ interface ICurveStablecoin {
 
 contract RouterTest is Test {
     using SafeTransferLib for address;
+    using FixedPointMathLib for uint256;
 
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -39,6 +41,8 @@ contract RouterTest is Test {
         0x109830a1AAaD605BbF02a9dFA7B0B92EC2FB7dAa;
     address public constant CRVUSD_CONTROLLER =
         0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
+    uint256 public constant ROUTER_FEE_DEDUCTED = 9_999;
+    uint256 public constant ROUTER_FEE_BASE = 10_000;
     UniswapV3Factory public immutable uniswapV3Factory = new UniswapV3Factory();
     CurveStableSwapFactory public immutable curveStableSwapFactory =
         new CurveStableSwapFactory();
@@ -187,6 +191,36 @@ contract RouterTest is Test {
         );
 
         router.addRoute(wstethCRVUSD, routes);
+    }
+
+    function _getSwapOutput(
+        IPath[] memory route,
+        uint256 input
+    ) private view returns (uint256 quoteValue) {
+        uint256 routeLength = route.length;
+        quoteValue = input;
+
+        for (uint256 j = 0; j < routeLength; ++j) {
+            quoteValue = route[j].quoteTokenOutput(quoteValue);
+        }
+
+        quoteValue = quoteValue.mulDiv(ROUTER_FEE_DEDUCTED, ROUTER_FEE_BASE);
+    }
+
+    function _getSwapInput(
+        IPath[] memory route,
+        uint256 output
+    ) private view returns (uint256 quoteValue) {
+        uint256 routeIndex = route.length - 1;
+        quoteValue = output.mulDivUp(ROUTER_FEE_BASE, ROUTER_FEE_DEDUCTED);
+
+        while (true) {
+            quoteValue = route[routeIndex].quoteTokenInput(quoteValue);
+
+            if (routeIndex == 0) break;
+
+            --routeIndex;
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -535,5 +569,84 @@ contract RouterTest is Test {
 
         assertEq(0, index);
         assertEq(0, output);
+    }
+
+    function testGetSwapOutput() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 input = 100e18;
+        IPath[][] memory routes = router.getRoutes(pair);
+        uint256[] memory outputs = new uint256[](routes.length);
+        uint256 bestOutputIndex = 0;
+        uint256 bestOutput = 0;
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            outputs[i] = _getSwapOutput(routes[i], input);
+
+            if (outputs[i] > bestOutput) {
+                bestOutputIndex = i;
+                bestOutput = outputs[i];
+            }
+        }
+
+        (uint256 index, uint256 output) = router.getSwapOutput(pair, input);
+
+        assertEq(bestOutputIndex, index);
+        assertEq(bestOutput, output);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             getSwapInput
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotGetSwapInputZeroInput() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 zeroOutput = 0;
+
+        vm.expectRevert();
+
+        router.getSwapInput(pair, zeroOutput);
+    }
+
+    function testGetSwapInputInvalidPair() external {
+        _setUpPools();
+
+        bytes32 invalidPair = bytes32(0);
+        uint256 output = 1e18;
+        (uint256 index, uint256 input) = router.getSwapInput(
+            invalidPair,
+            output
+        );
+
+        assertEq(0, index);
+        assertEq(0, input);
+    }
+
+    function testGetSwapInput() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 output = 1e18;
+        IPath[][] memory routes = router.getRoutes(pair);
+        uint256[] memory inputs = new uint256[](routes.length);
+        uint256 bestInputIndex = 0;
+        uint256 bestInput = 0;
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            inputs[i] = _getSwapInput(routes[i], output);
+
+            if (inputs[i] < bestInput || bestInput == 0) {
+                bestInputIndex = i;
+                bestInput = inputs[i];
+            }
+        }
+
+        (uint256 index, uint256 input) = router.getSwapInput(pair, output);
+
+        assertEq(bestInputIndex, index);
+        assertEq(bestInput, input);
     }
 }

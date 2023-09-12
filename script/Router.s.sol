@@ -2,14 +2,14 @@
 pragma solidity 0.8.19;
 
 import "forge-std/Script.sol";
-import {PathRegistry} from "src/PathRegistry.sol";
+import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
 import {UniswapV3} from "src/paths/UniswapV3.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 
-contract PathRegistryScript is Script {
+contract RouterScript is Script {
     address public constant CURVE_CRVUSD_USDT =
         0x390f3595bCa2Df7d23783dFd126427CCeb997BF4;
     address public constant CURVE_CRVUSD_USDC =
@@ -53,7 +53,7 @@ contract PathRegistryScript is Script {
         ethCRVUSDPools[1] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
         );
-        PathRegistry registry = new PathRegistry(vm.envAddress("OWNER"));
+        Router registry = new Router(vm.envAddress("OWNER"));
 
         registry.addRoute(crvUSDETH, crvUSDETHPools);
         registry.addRoute(ethCRVUSD, ethCRVUSDPools);

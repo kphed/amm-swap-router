@@ -7,7 +7,7 @@ import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
 
-contract PathRegistry is Ownable, ReentrancyGuard {
+contract Router is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 

@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {PathRegistry} from "src/PathRegistry.sol";
+import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
@@ -14,7 +14,7 @@ interface ICurveStablecoin {
     function mint(address to, uint256 amount) external;
 }
 
-contract PathRegistryTest is Test {
+contract RouterTest is Test {
     using SafeTransferLib for address;
 
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
@@ -34,7 +34,7 @@ contract PathRegistryTest is Test {
     UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();
     CurveStableSwapFactory curveStableSwapFactory =
         new CurveStableSwapFactory();
-    PathRegistry public immutable registry = new PathRegistry(address(this));
+    Router public immutable router = new Router(address(this));
 
     event WithdrawERC20(
         address indexed token,
@@ -76,14 +76,14 @@ contract PathRegistryTest is Test {
         );
         routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
 
-        registry.addRoute(crvUSDETH, routes);
+        router.addRoute(crvUSDETH, routes);
 
         routes[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
         );
         routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, false));
 
-        registry.addRoute(crvUSDETH, routes);
+        router.addRoute(crvUSDETH, routes);
 
         bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
 
@@ -92,14 +92,14 @@ contract PathRegistryTest is Test {
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
         );
 
-        registry.addRoute(ethCRVUSD, routes);
+        router.addRoute(ethCRVUSD, routes);
 
         routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, true));
         routes[1] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
         );
 
-        registry.addRoute(ethCRVUSD, routes);
+        router.addRoute(ethCRVUSD, routes);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -112,34 +112,34 @@ contract PathRegistryTest is Test {
         address recipient = address(this);
         uint256 amount = 1e18;
 
-        assertTrue(unauthorizedMsgSender != registry.owner());
+        assertTrue(unauthorizedMsgSender != router.owner());
 
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.withdrawERC20(token, recipient, amount);
+        router.withdrawERC20(token, recipient, amount);
     }
 
     function testWithdrawERC20() external {
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         address token = CRVUSD;
         address recipient = address(this);
         uint256 amount = 1e18;
 
-        _mintCRVUSD(address(registry), amount);
+        _mintCRVUSD(address(router), amount);
 
         assertEq(0, CRVUSD.balanceOf(address(this)));
-        assertEq(amount, CRVUSD.balanceOf(address(registry)));
+        assertEq(amount, CRVUSD.balanceOf(address(router)));
 
         vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
+        vm.expectEmit(true, true, false, true, address(router));
 
         emit WithdrawERC20(token, recipient, amount);
 
-        registry.withdrawERC20(token, recipient, amount);
+        router.withdrawERC20(token, recipient, amount);
 
         assertEq(amount, CRVUSD.balanceOf(address(this)));
-        assertEq(0, CRVUSD.balanceOf(address(registry)));
+        assertEq(0, CRVUSD.balanceOf(address(router)));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -151,49 +151,49 @@ contract PathRegistryTest is Test {
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory newRoute = new IPath[](2);
 
-        assertTrue(unauthorizedMsgSender != registry.owner());
+        assertTrue(unauthorizedMsgSender != router.owner());
 
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.addRoute(pair, newRoute);
+        router.addRoute(pair, newRoute);
     }
 
     function testCannotAddRouteInvalidPair() external {
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 invalidTokenPair = bytes32(0);
         IPath[] memory newRoute = new IPath[](2);
 
         assertEq(bytes32(0), invalidTokenPair);
 
         vm.prank(msgSender);
-        vm.expectRevert(PathRegistry.InvalidPair.selector);
+        vm.expectRevert(Router.InvalidPair.selector);
 
-        registry.addRoute(invalidTokenPair, newRoute);
+        router.addRoute(invalidTokenPair, newRoute);
     }
 
     function testCannotAddRouteEmptyArray() external {
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory emptyNewRoute = new IPath[](0);
 
         assertEq(0, emptyNewRoute.length);
 
         vm.prank(msgSender);
-        vm.expectRevert(PathRegistry.EmptyArray.selector);
+        vm.expectRevert(Router.EmptyArray.selector);
 
-        registry.addRoute(pair, emptyNewRoute);
+        router.addRoute(pair, emptyNewRoute);
     }
 
     function testAddRoute() external {
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[] memory newRoute = new IPath[](2);
         newRoute[0] = IPath(
             curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
         );
         newRoute[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
-        uint256 addIndex = registry.getRoutes(pair).length;
+        uint256 addIndex = router.getRoutes(pair).length;
         (
             address curveCRVUSDUSDCInputToken,
             address curveCRVUSDUSDCOutputToken
@@ -206,13 +206,13 @@ contract PathRegistryTest is Test {
         assertEq(0, addIndex);
 
         vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
+        vm.expectEmit(true, true, false, true, address(router));
 
         emit AddRoute(pair, newRoute);
 
-        registry.addRoute(pair, newRoute);
+        router.addRoute(pair, newRoute);
 
-        IPath[][] memory routes = registry.getRoutes(pair);
+        IPath[][] memory routes = router.getRoutes(pair);
 
         assertEq(1, routes.length);
 
@@ -227,28 +227,28 @@ contract PathRegistryTest is Test {
         assertEq(
             type(uint256).max,
             ERC20(curveCRVUSDUSDCInputToken).allowance(
-                address(registry),
+                address(router),
                 address(newRoute[0])
             )
         );
         assertEq(
             type(uint256).max,
             ERC20(curveCRVUSDUSDCOutputToken).allowance(
-                address(registry),
+                address(router),
                 address(newRoute[0])
             )
         );
         assertEq(
             type(uint256).max,
             ERC20(uniswapUSDCETHInputToken).allowance(
-                address(registry),
+                address(router),
                 address(newRoute[1])
             )
         );
         assertEq(
             type(uint256).max,
             ERC20(uniswapUSDCETHOutputToken).allowance(
-                address(registry),
+                address(router),
                 address(newRoute[1])
             )
         );
@@ -263,31 +263,31 @@ contract PathRegistryTest is Test {
         bytes32 pair = _hashPair(CRVUSD, WETH);
         uint256 index = 0;
 
-        assertTrue(unauthorizedMsgSender != registry.owner());
+        assertTrue(unauthorizedMsgSender != router.owner());
 
         vm.prank(unauthorizedMsgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
 
-        registry.removeRoute(pair, index);
+        router.removeRoute(pair, index);
     }
 
     function testCannotRemoveRouteInvalidPair() external {
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 invalidTokenPair = bytes32(0);
         uint256 index = 0;
 
         vm.prank(msgSender);
-        vm.expectRevert(PathRegistry.InvalidPair.selector);
+        vm.expectRevert(Router.InvalidPair.selector);
 
-        registry.removeRoute(invalidTokenPair, index);
+        router.removeRoute(invalidTokenPair, index);
     }
 
     function testCannotRemoveRouteIndexOOB() external {
         _setUpPools();
 
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[][] memory routes = registry.getRoutes(pair);
+        IPath[][] memory routes = router.getRoutes(pair);
         uint256 invalidIndex = routes.length + 1;
 
         assertGt(invalidIndex, routes.length);
@@ -295,15 +295,15 @@ contract PathRegistryTest is Test {
         vm.prank(msgSender);
         vm.expectRevert(stdError.indexOOBError);
 
-        registry.removeRoute(pair, invalidIndex);
+        router.removeRoute(pair, invalidIndex);
     }
 
     function testRemoveRoute() external {
         _setUpPools();
 
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[][] memory routes = registry.getRoutes(pair);
+        IPath[][] memory routes = router.getRoutes(pair);
         uint256 index = 0;
         uint256 lastIndex = routes.length - 1;
         IPath[] memory lastRoute = routes[lastIndex];
@@ -316,13 +316,13 @@ contract PathRegistryTest is Test {
         }
 
         vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
+        vm.expectEmit(true, true, false, true, address(router));
 
         emit RemoveRoute(pair, index);
 
-        registry.removeRoute(pair, index);
+        router.removeRoute(pair, index);
 
-        routes = registry.getRoutes(pair);
+        routes = router.getRoutes(pair);
 
         assertEq(1, routes.length);
 
@@ -335,9 +335,9 @@ contract PathRegistryTest is Test {
     function testRemoveRouteLastIndex() external {
         _setUpPools();
 
-        address msgSender = registry.owner();
+        address msgSender = router.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);
-        IPath[][] memory routes = registry.getRoutes(pair);
+        IPath[][] memory routes = router.getRoutes(pair);
         uint256 lastIndex = routes.length - 1;
         uint256 index = lastIndex;
         IPath[] memory lastPath = routes[lastIndex];
@@ -345,13 +345,13 @@ contract PathRegistryTest is Test {
         assertEq(2, routes.length);
 
         vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(registry));
+        vm.expectEmit(true, true, false, true, address(router));
 
         emit RemoveRoute(pair, index);
 
-        registry.removeRoute(pair, index);
+        router.removeRoute(pair, index);
 
-        routes = registry.getRoutes(pair);
+        routes = router.getRoutes(pair);
         lastIndex = routes.length - 1;
 
         assertEq(1, routes.length);
@@ -372,18 +372,18 @@ contract PathRegistryTest is Test {
         bytes32 pair = _hashPair(CRVUSD, WETH);
         uint256 routeIndex = 0;
         uint256 pathIndex = 0;
-        IPath path = IPath(registry.getRoutes(pair)[routeIndex][pathIndex]);
+        IPath path = IPath(router.getRoutes(pair)[routeIndex][pathIndex]);
         (address inputToken, address outputToken) = path.tokens();
 
-        vm.startPrank(address(registry));
+        vm.startPrank(address(router));
 
         assertEq(
             type(uint256).max,
-            ERC20(inputToken).allowance(address(registry), address(path))
+            ERC20(inputToken).allowance(address(router), address(path))
         );
         assertEq(
             type(uint256).max,
-            ERC20(outputToken).allowance(address(registry), address(path))
+            ERC20(outputToken).allowance(address(router), address(path))
         );
 
         inputToken.safeApproveWithRetry(address(path), 0);
@@ -391,11 +391,11 @@ contract PathRegistryTest is Test {
 
         assertEq(
             0,
-            ERC20(inputToken).allowance(address(registry), address(path))
+            ERC20(inputToken).allowance(address(router), address(path))
         );
         assertEq(
             0,
-            ERC20(outputToken).allowance(address(registry), address(path))
+            ERC20(outputToken).allowance(address(router), address(path))
         );
 
         vm.stopPrank();
@@ -403,19 +403,19 @@ contract PathRegistryTest is Test {
         address msgSender = address(this);
 
         vm.prank(msgSender);
-        vm.expectEmit(true, false, false, true, address(registry));
+        vm.expectEmit(true, false, false, true, address(router));
 
         emit ApprovePath(path, inputToken, outputToken);
 
-        registry.approvePath(pair, routeIndex, pathIndex);
+        router.approvePath(pair, routeIndex, pathIndex);
 
         assertEq(
             type(uint256).max,
-            ERC20(inputToken).allowance(address(registry), address(path))
+            ERC20(inputToken).allowance(address(router), address(path))
         );
         assertEq(
             type(uint256).max,
-            ERC20(outputToken).allowance(address(registry), address(path))
+            ERC20(outputToken).allowance(address(router), address(path))
         );
     }
 
@@ -431,7 +431,7 @@ contract PathRegistryTest is Test {
 
         vm.expectRevert();
 
-        registry.getSwapOutput(pair, zeroInput);
+        router.getSwapOutput(pair, zeroInput);
     }
 
     function testGetSwapOutputInvalidPair() external {
@@ -441,7 +441,7 @@ contract PathRegistryTest is Test {
         uint256 input = 1e18;
 
         // Does not revert, just doesn't do anything.
-        (uint256 index, uint256 output) = registry.getSwapOutput(
+        (uint256 index, uint256 output) = router.getSwapOutput(
             invalidPair,
             input
         );

@@ -30,6 +30,14 @@ contract Router is Ownable, ReentrancyGuard {
         address indexed inputToken,
         address indexed outputToken
     );
+    event Swap(
+        address indexed msgSender,
+        address indexed inputToken,
+        address indexed outputToken,
+        uint256 input,
+        uint256 output,
+        uint256 index
+    );
 
     error InsufficientOutput();
     error InvalidPair();
@@ -181,6 +189,15 @@ contract Router is Ownable, ReentrancyGuard {
         // If the post-fee amount is less than the minimum, transfer the minimum to the swapper,
         // since we know that the pre-fee amount is greater than or equal to the minimum.
         if (output < minOutput) output = minOutput;
+
+        emit Swap(
+            msg.sender,
+            inputToken,
+            outputToken,
+            input,
+            output,
+            routeIndex
+        );
 
         outputToken.safeTransfer(msg.sender, output);
     }

@@ -6,10 +6,20 @@ import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
 import {UniswapV3} from "src/paths/UniswapV3.sol";
+import {CurveCryptoV2Factory} from "src/paths/CurveCryptoV2Factory.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 
 contract RouterScript is Script {
+    address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+    address public constant CURVE_CRVUSD_ETH_CRV =
+        0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14;
+    address public constant CURVE_CRVUSD_TBTC_WSTETH =
+        0x2889302a794dA87fBF1D6Db415C1492194663D13;
     address public constant CURVE_CRVUSD_USDT =
         0x390f3595bCa2Df7d23783dFd126427CCeb997BF4;
     address public constant CURVE_CRVUSD_USDC =
@@ -18,10 +28,8 @@ contract RouterScript is Script {
         0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
     address public constant UNISWAP_USDT_ETH =
         0x11b815efB8f581194ae79006d24E0d814B7697F6;
-    address public constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
-    address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant UNISWAP_WSTETH_ETH =
+        0x109830a1AAaD605BbF02a9dFA7B0B92EC2FB7dAa;
 
     function _hashPair(
         address inputToken,
@@ -30,46 +38,223 @@ contract RouterScript is Script {
         return keccak256(abi.encodePacked(inputToken, outputToken));
     }
 
+    function _setUpPools(
+        Router router,
+        CurveCryptoV2Factory curveCryptoV2Factory,
+        CurveStableSwapFactory curveStableSwapFactory,
+        UniswapV3Factory uniswapV3Factory
+    ) private {
+        _setUpPoolsCRVUSD_ETH(
+            router,
+            curveCryptoV2Factory,
+            curveStableSwapFactory,
+            uniswapV3Factory
+        );
+        _setUpPoolsETH_CRVUSD(
+            router,
+            curveCryptoV2Factory,
+            curveStableSwapFactory,
+            uniswapV3Factory
+        );
+        _setUpPoolsCRVUSD_WSTETH(
+            router,
+            curveCryptoV2Factory,
+            curveStableSwapFactory,
+            uniswapV3Factory
+        );
+        _setUpPoolsWSTETH_CRVUSD(
+            router,
+            curveCryptoV2Factory,
+            curveStableSwapFactory,
+            uniswapV3Factory
+        );
+    }
+
+    /**
+     * @notice Conveniently add all available pools for more complex testing.
+     */
+    function _setUpPoolsCRVUSD_ETH(
+        Router router,
+        CurveCryptoV2Factory curveCryptoV2Factory,
+        CurveStableSwapFactory curveStableSwapFactory,
+        UniswapV3Factory uniswapV3Factory
+    ) private {
+        console.log("===");
+        console.log("CRVUSD-ETH");
+        bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
+        IPath[] memory routes = new IPath[](2);
+        routes[0] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
+        );
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
+
+        console.log("CURVE_CRVUSD_USDC", address(routes[0]));
+
+        router.addRoute(crvUSDETH, routes);
+
+        routes[0] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
+        );
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, false));
+
+        console.log("CURVE_CRVUSD_USDT", address(routes[0]));
+
+        router.addRoute(crvUSDETH, routes);
+
+        routes = new IPath[](1);
+        routes[0] = IPath(
+            curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 0, 1)
+        );
+
+        console.log("CURVE_CRVUSD_ETH_CRV", address(routes[0]));
+
+        router.addRoute(crvUSDETH, routes);
+        console.log("===");
+    }
+
+    function _setUpPoolsETH_CRVUSD(
+        Router router,
+        CurveCryptoV2Factory curveCryptoV2Factory,
+        CurveStableSwapFactory curveStableSwapFactory,
+        UniswapV3Factory uniswapV3Factory
+    ) private {
+        console.log("===");
+        console.log("CRVUSD-ETH");
+        bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
+        IPath[] memory routes = new IPath[](2);
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, false));
+        routes[1] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
+        );
+
+        console.log("CURVE_CRVUSD_USDC", address(routes[1]));
+
+        router.addRoute(ethCRVUSD, routes);
+
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, true));
+        routes[1] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
+        );
+
+        console.log("CURVE_CRVUSD_USDT", address(routes[1]));
+
+        router.addRoute(ethCRVUSD, routes);
+
+        routes = new IPath[](1);
+        routes[0] = IPath(
+            curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 1, 0)
+        );
+
+        console.log("CURVE_CRVUSD_ETH_CRV", address(routes[0]));
+        console.log("===");
+
+        router.addRoute(ethCRVUSD, routes);
+    }
+
+    function _setUpPoolsCRVUSD_WSTETH(
+        Router router,
+        CurveCryptoV2Factory curveCryptoV2Factory,
+        CurveStableSwapFactory curveStableSwapFactory,
+        UniswapV3Factory uniswapV3Factory
+    ) private {
+        console.log("===");
+        console.log("CRVUSD-WSTETH");
+        bytes32 crvusdWSTETH = _hashPair(CRVUSD, WSTETH);
+        IPath[] memory routes = new IPath[](3);
+        routes[0] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
+        );
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
+        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, false));
+
+        console.log("CURVE_CRVUSD_USDC", address(routes[0]));
+
+        router.addRoute(crvusdWSTETH, routes);
+
+        routes[0] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
+        );
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, false));
+        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, false));
+
+        console.log("CURVE_CRVUSD_USDT", address(routes[0]));
+
+        router.addRoute(crvusdWSTETH, routes);
+
+        routes = new IPath[](1);
+        routes[0] = IPath(
+            curveCryptoV2Factory.create(CURVE_CRVUSD_TBTC_WSTETH, 0, 2)
+        );
+
+        console.log("CURVE_CRVUSD_TBTC_WSTETH", address(routes[0]));
+        console.log("===");
+
+        router.addRoute(crvusdWSTETH, routes);
+    }
+
+    function _setUpPoolsWSTETH_CRVUSD(
+        Router router,
+        CurveCryptoV2Factory curveCryptoV2Factory,
+        CurveStableSwapFactory curveStableSwapFactory,
+        UniswapV3Factory uniswapV3Factory
+    ) private {
+        console.log("===");
+        console.log("WSTETH-CRVUSD");
+        bytes32 wstethCRVUSD = _hashPair(WSTETH, CRVUSD);
+        IPath[] memory routes = new IPath[](3);
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, true));
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, false));
+        routes[2] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
+        );
+
+        console.log("CURVE_CRVUSD_USDC", address(routes[2]));
+
+        router.addRoute(wstethCRVUSD, routes);
+
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, true));
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, true));
+        routes[2] = IPath(
+            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
+        );
+
+        console.log("CURVE_CRVUSD_USDT", address(routes[2]));
+
+        router.addRoute(wstethCRVUSD, routes);
+
+        routes = new IPath[](1);
+        routes[0] = IPath(
+            curveCryptoV2Factory.create(CURVE_CRVUSD_TBTC_WSTETH, 2, 0)
+        );
+
+        console.log("CURVE_CRVUSD_TBTC_WSTETH", address(routes[0]));
+        console.log("===");
+
+        router.addRoute(wstethCRVUSD, routes);
+    }
+
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
-        bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
-        IPath[] memory crvUSDETHPools = new IPath[](2);
-        IPath[] memory ethCRVUSDPools = new IPath[](2);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();
+        Router router = new Router(vm.envAddress("OWNER"));
+        CurveCryptoV2Factory curveCryptoV2Factory = new CurveCryptoV2Factory();
         CurveStableSwapFactory curveStableSwapFactory = new CurveStableSwapFactory();
-        crvUSDETHPools[0] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
-        );
-        crvUSDETHPools[1] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, true)
-        );
-        ethCRVUSDPools[0] = IPath(
-            uniswapV3Factory.create(UNISWAP_USDC_ETH, false)
-        );
-        ethCRVUSDPools[1] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
-        );
-        Router registry = new Router(vm.envAddress("OWNER"));
+        UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();
 
-        registry.addRoute(crvUSDETH, crvUSDETHPools);
-        registry.addRoute(ethCRVUSD, ethCRVUSDPools);
+        console.log("");
 
-        console.log("===");
-        console.log("Registry", address(registry));
+        _setUpPools(
+            router,
+            curveCryptoV2Factory,
+            curveStableSwapFactory,
+            uniswapV3Factory
+        );
+
         console.log("");
-        console.log("=== crvUSD => WETH ===");
-        console.log("CurveStableSwap: CRVUSD-USDC", address(crvUSDETHPools[0]));
-        console.log("Uniswap: USDC-WETH", address(crvUSDETHPools[1]));
-        console.log("");
-        console.log("=== WETH => crvUSD ===");
-        console.log("Uniswap: USDC-WETH", address(ethCRVUSDPools[0]));
-        console.log("CurveStableSwap: CRVUSD-USDC", address(ethCRVUSDPools[1]));
-        console.log("");
-        console.log("===");
+
+        console.log("Router", address(router));
 
         vm.stopBroadcast();
     }

@@ -168,10 +168,11 @@ contract Router is Ownable, ReentrancyGuard {
             keccak256(abi.encodePacked(inputToken, outputToken))
         ][routeIndex];
         uint256 routeLength = route.length;
+        uint256 swapOutput = input;
         output = outputToken.balanceOf(address(this));
 
         for (uint256 i = 0; i < routeLength; ) {
-            input = route[i].swap(input);
+            swapOutput = route[i].swap(swapOutput);
 
             unchecked {
                 ++i;

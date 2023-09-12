@@ -62,6 +62,15 @@ contract RouterTest is Test {
         address indexed inputToken,
         address indexed outputToken
     );
+    event Swap(
+        address indexed msgSender,
+        address indexed inputToken,
+        address indexed outputToken,
+        uint256 input,
+        uint256 output,
+        uint256 index
+    );
+    event Transfer(address indexed from, address indexed to, uint256 amount);
 
     receive() external payable {}
 
@@ -340,11 +349,10 @@ contract RouterTest is Test {
         IPath[] memory route = routes[addIndex];
 
         assertEq(newRoute.length, route.length);
-
-        for (uint256 i = 0; i < newRoute.length; ++i) {
-            assertEq(address(newRoute[i]), address(route[i]));
-        }
-
+        assertEq(
+            keccak256(abi.encodePacked(newRoute)),
+            keccak256(abi.encodePacked(route))
+        );
         assertEq(
             type(uint256).max,
             ERC20(curveCRVUSDUSDCInputToken).allowance(
@@ -430,11 +438,11 @@ contract RouterTest is Test {
         IPath[] memory lastRoute = routes[lastIndex];
 
         assertTrue(index != lastIndex);
-        assertEq(2, routes.length);
-
-        for (uint256 i = 0; i < routes.length; ++i) {
-            assertTrue(address(routes[index][i]) != address(lastRoute[i]));
-        }
+        assertEq(3, routes.length);
+        assertTrue(
+            keccak256(abi.encodePacked(routes[index])) !=
+                keccak256(abi.encodePacked(lastRoute))
+        );
 
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(router));
@@ -445,12 +453,11 @@ contract RouterTest is Test {
 
         routes = router.getRoutes(pair);
 
-        assertEq(1, routes.length);
-
-        for (uint256 i = 0; i < routes.length; ++i) {
-            // The last exchange path now has the same index as the removed index.
-            assertEq(address(routes[index][i]), address(lastRoute[i]));
-        }
+        assertEq(2, routes.length);
+        assertEq(
+            keccak256(abi.encodePacked(routes[index])),
+            keccak256(abi.encodePacked(lastRoute))
+        );
     }
 
     function testRemoveRouteLastIndex() external {
@@ -463,7 +470,11 @@ contract RouterTest is Test {
         uint256 index = lastIndex;
         IPath[] memory lastPath = routes[lastIndex];
 
-        assertEq(2, routes.length);
+        assertEq(3, routes.length);
+        assertEq(
+            keccak256(abi.encodePacked(lastPath)),
+            keccak256(abi.encodePacked(routes[lastIndex]))
+        );
 
         vm.prank(msgSender);
         vm.expectEmit(true, true, false, true, address(router));
@@ -475,12 +486,11 @@ contract RouterTest is Test {
         routes = router.getRoutes(pair);
         lastIndex = routes.length - 1;
 
-        assertEq(1, routes.length);
-
-        for (uint256 i = 0; i < lastPath.length; ++i) {
-            // The old last exchange path and the current last exchange path should not be equal.
-            assertTrue(address(lastPath[i]) != address(routes[lastIndex][i]));
-        }
+        assertEq(2, routes.length);
+        assertTrue(
+            keccak256(abi.encodePacked(lastPath)) !=
+                keccak256(abi.encodePacked(routes[lastIndex]))
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -648,5 +658,130 @@ contract RouterTest is Test {
 
         assertEq(bestInputIndex, index);
         assertEq(bestInput, input);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             swap
+    //////////////////////////////////////////////////////////////*/
+
+    function testCannotSwapInsufficientOutput() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 input = 1_000e18;
+        (uint256 index, uint256 output) = router.getSwapOutput(pair, input);
+        uint256 excessiveOutput = output * 2;
+
+        _mintCRVUSD(address(this), input);
+        CRVUSD.safeApprove(address(router), input);
+
+        vm.expectRevert(Router.InsufficientOutput.selector);
+
+        router.swap(CRVUSD, WETH, input, excessiveOutput, index);
+    }
+
+    function testSwap() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 input = 1_000e18;
+        (uint256 index, uint256 output) = router.getSwapOutput(pair, input);
+
+        _mintCRVUSD(address(this), input);
+        CRVUSD.safeApprove(address(router), input);
+
+        uint256 inputBalanceBefore = CRVUSD.balanceOf(address(this));
+        uint256 outputBalanceBefore = WETH.balanceOf(address(this));
+        uint256 inputAllowanceBefore = ERC20(CRVUSD).allowance(
+            address(this),
+            address(router)
+        );
+        uint256 feesBalanceBefore = WETH.balanceOf(address(router));
+
+        vm.expectEmit(true, true, false, true, CRVUSD);
+
+        emit Transfer(address(this), address(router), input);
+
+        vm.expectEmit(true, true, true, true, address(router));
+
+        emit Swap(address(this), CRVUSD, WETH, input, output, index);
+
+        vm.expectEmit(true, true, false, true, WETH);
+
+        emit Transfer(address(router), address(this), output);
+
+        uint256 swapOutput = router.swap(CRVUSD, WETH, input, output, index);
+        uint256 fees = swapOutput.mulDivUp(
+            ROUTER_FEE_BASE,
+            ROUTER_FEE_DEDUCTED
+        ) - swapOutput;
+
+        assertEq(output, swapOutput);
+        assertEq(inputBalanceBefore - input, CRVUSD.balanceOf(address(this)));
+        assertEq(
+            inputAllowanceBefore - input,
+            ERC20(CRVUSD).allowance(address(this), address(router))
+        );
+        assertEq(outputBalanceBefore + output, WETH.balanceOf(address(this)));
+        assertEq(feesBalanceBefore + fees, WETH.balanceOf(address(router)));
+    }
+
+    function testSwapPreFeeOutput() external {
+        _setUpPools();
+
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 input = 1_000e18;
+        (uint256 index, uint256 output) = router.getSwapOutput(pair, input);
+        uint256 preFeeOutput = output.mulDivUp(
+            ROUTER_FEE_BASE,
+            ROUTER_FEE_DEDUCTED
+        );
+
+        assertGt(preFeeOutput, output);
+
+        _mintCRVUSD(address(this), input);
+        CRVUSD.safeApprove(address(router), input);
+
+        uint256 inputBalanceBefore = CRVUSD.balanceOf(address(this));
+        uint256 outputBalanceBefore = WETH.balanceOf(address(this));
+        uint256 inputAllowanceBefore = ERC20(CRVUSD).allowance(
+            address(this),
+            address(router)
+        );
+        uint256 feesBalanceBefore = WETH.balanceOf(address(router));
+
+        vm.expectEmit(true, true, false, true, CRVUSD);
+
+        emit Transfer(address(this), address(router), input);
+
+        vm.expectEmit(true, true, true, true, address(router));
+
+        emit Swap(address(this), CRVUSD, WETH, input, preFeeOutput, index);
+
+        vm.expectEmit(true, true, false, true, WETH);
+
+        emit Transfer(address(router), address(this), preFeeOutput);
+
+        uint256 swapOutput = router.swap(
+            CRVUSD,
+            WETH,
+            input,
+            preFeeOutput,
+            index
+        );
+        uint256 fees = preFeeOutput - swapOutput;
+
+        assertGt(swapOutput, output);
+        assertEq(preFeeOutput, swapOutput);
+        assertEq(inputBalanceBefore - input, CRVUSD.balanceOf(address(this)));
+        assertEq(
+            inputAllowanceBefore - input,
+            ERC20(CRVUSD).allowance(address(this), address(router))
+        );
+        assertEq(
+            outputBalanceBefore + preFeeOutput,
+            WETH.balanceOf(address(this))
+        );
+        assertEq(feesBalanceBefore + fees, WETH.balanceOf(address(router)));
     }
 }

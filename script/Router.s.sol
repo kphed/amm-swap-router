@@ -20,15 +20,15 @@ contract RouterScript is Script {
         0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14;
     address public constant CURVE_CRVUSD_TBTC_WSTETH =
         0x2889302a794dA87fBF1D6Db415C1492194663D13;
-    address public constant CURVE_CRVUSD_USDT =
+    address public constant CURVE_USDT_CRVUSD =
         0x390f3595bCa2Df7d23783dFd126427CCeb997BF4;
-    address public constant CURVE_CRVUSD_USDC =
+    address public constant CURVE_USDC_CRVUSD =
         0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E;
-    address public constant UNISWAP_USDC_ETH =
+    address public constant UNISWAP_USDC_WETH =
         0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
-    address public constant UNISWAP_USDT_ETH =
+    address public constant UNISWAP_WETH_USDT =
         0x11b815efB8f581194ae79006d24E0d814B7697F6;
-    address public constant UNISWAP_WSTETH_ETH =
+    address public constant UNISWAP_WSTETH_WETH =
         0x109830a1AAaD605BbF02a9dFA7B0B92EC2FB7dAa;
 
     function _hashPair(
@@ -83,25 +83,44 @@ contract RouterScript is Script {
         console.log("CRVUSD-ETH");
         bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
         IPath[] memory routes = new IPath[](2);
-        routes[0] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
-        );
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
 
-        console.log("CURVE_CRVUSD_USDC", address(routes[0]));
+        // https://etherscan.io/address/0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E#readContract
+        // USDC = 0
+        // crvUSD = 1
+        routes[0] = IPath(
+            curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 1, 0)
+        );
+
+        console.log("CURVE_USDC_CRVUSD", address(routes[0]));
+
+        // https://etherscan.io/address/0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640#readContract
+        // USDC = 0
+        // WETH = 1
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, true));
 
         router.addRoute(crvUSDETH, routes);
 
+        // https://etherscan.io/address/0x390f3595bCa2Df7d23783dFd126427CCeb997BF4#readContract
+        // USDT = 0
+        // crvUSD = 1
         routes[0] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
+            curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 1, 0)
         );
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, false));
 
-        console.log("CURVE_CRVUSD_USDT", address(routes[0]));
+        console.log("CURVE_USDT_CRVUSD", address(routes[0]));
+
+        // https://etherscan.io/address/0x11b815efB8f581194ae79006d24E0d814B7697F6#readContract
+        // WETH = 0
+        // USDT = 1
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, false));
 
         router.addRoute(crvUSDETH, routes);
 
         routes = new IPath[](1);
+
+        // https://etherscan.io/address/0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14#readContract
+        // crvUSD = 0
+        // WETH = 1
         routes[0] = IPath(
             curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 0, 1)
         );
@@ -122,21 +141,23 @@ contract RouterScript is Script {
         console.log("CRVUSD-ETH");
         bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
         IPath[] memory routes = new IPath[](2);
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, false));
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, false));
         routes[1] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
+            curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 0, 1)
         );
 
-        console.log("CURVE_CRVUSD_USDC", address(routes[1]));
+        console.log("CURVE_USDC_CRVUSD", address(routes[1]));
 
         router.addRoute(ethCRVUSD, routes);
 
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, true));
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, true));
+
+        console.log("CURVE_USDT_CRVUSD", address(routes[1]));
+
         routes[1] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
+            curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
         );
 
-        console.log("CURVE_CRVUSD_USDT", address(routes[1]));
 
         router.addRoute(ethCRVUSD, routes);
 
@@ -162,22 +183,26 @@ contract RouterScript is Script {
         bytes32 crvusdWSTETH = _hashPair(CRVUSD, WSTETH);
         IPath[] memory routes = new IPath[](3);
         routes[0] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 1, 0)
+            curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 1, 0)
         );
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, true));
-        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, false));
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, true));
 
-        console.log("CURVE_CRVUSD_USDC", address(routes[0]));
+        // https://etherscan.io/address/0x109830a1AAaD605BbF02a9dFA7B0B92EC2FB7dAa#readContract
+        // wstETH = 0
+        // WETH = 1
+        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false));
+
+        console.log("CURVE_USDC_CRVUSD", address(routes[0]));
 
         router.addRoute(crvusdWSTETH, routes);
 
         routes[0] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 1, 0)
+            curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 1, 0)
         );
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, false));
-        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, false));
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, false));
+        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false));
 
-        console.log("CURVE_CRVUSD_USDT", address(routes[0]));
+        console.log("CURVE_USDT_CRVUSD", address(routes[0]));
 
         router.addRoute(crvusdWSTETH, routes);
 
@@ -202,23 +227,23 @@ contract RouterScript is Script {
         console.log("WSTETH-CRVUSD");
         bytes32 wstethCRVUSD = _hashPair(WSTETH, CRVUSD);
         IPath[] memory routes = new IPath[](3);
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, true));
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_ETH, false));
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, true));
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, false));
         routes[2] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDC, 0, 1)
+            curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 0, 1)
         );
 
-        console.log("CURVE_CRVUSD_USDC", address(routes[2]));
+        console.log("CURVE_USDC_CRVUSD", address(routes[2]));
 
         router.addRoute(wstethCRVUSD, routes);
 
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_ETH, true));
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDT_ETH, true));
+        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, true));
+        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, true));
         routes[2] = IPath(
-            curveStableSwapFactory.create(CURVE_CRVUSD_USDT, 0, 1)
+            curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
         );
 
-        console.log("CURVE_CRVUSD_USDT", address(routes[2]));
+        console.log("CURVE_USDT_CRVUSD", address(routes[2]));
 
         router.addRoute(wstethCRVUSD, routes);
 

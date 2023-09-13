@@ -6,7 +6,6 @@ import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
 import {UniswapV3} from "src/paths/UniswapV3.sol";
-import {CurveCryptoV2Factory} from "src/paths/CurveCryptoV2Factory.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 
@@ -16,10 +15,6 @@ contract RouterScript is Script {
     address public constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
-    address public constant CURVE_CRVUSD_ETH_CRV =
-        0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14;
-    address public constant CURVE_CRVUSD_TBTC_WSTETH =
-        0x2889302a794dA87fBF1D6Db415C1492194663D13;
     address public constant CURVE_USDT_CRVUSD =
         0x390f3595bCa2Df7d23783dFd126427CCeb997BF4;
     address public constant CURVE_USDC_CRVUSD =
@@ -40,31 +35,18 @@ contract RouterScript is Script {
 
     function _setUpPools(
         Router router,
-        CurveCryptoV2Factory curveCryptoV2Factory,
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
-        _setUpPoolsCRVUSD_ETH(
-            router,
-            curveCryptoV2Factory,
-            curveStableSwapFactory,
-            uniswapV3Factory
-        );
-        _setUpPoolsETH_CRVUSD(
-            router,
-            curveCryptoV2Factory,
-            curveStableSwapFactory,
-            uniswapV3Factory
-        );
+        _setUpPoolsCRVUSD_ETH(router, curveStableSwapFactory, uniswapV3Factory);
+        _setUpPoolsETH_CRVUSD(router, curveStableSwapFactory, uniswapV3Factory);
         _setUpPoolsCRVUSD_WSTETH(
             router,
-            curveCryptoV2Factory,
             curveStableSwapFactory,
             uniswapV3Factory
         );
         _setUpPoolsWSTETH_CRVUSD(
             router,
-            curveCryptoV2Factory,
             curveStableSwapFactory,
             uniswapV3Factory
         );
@@ -75,7 +57,6 @@ contract RouterScript is Script {
      */
     function _setUpPoolsCRVUSD_ETH(
         Router router,
-        CurveCryptoV2Factory curveCryptoV2Factory,
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
@@ -115,25 +96,10 @@ contract RouterScript is Script {
         routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, false));
 
         router.addRoute(crvUSDETH, routes);
-
-        routes = new IPath[](1);
-
-        // https://etherscan.io/address/0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14#readContract
-        // crvUSD = 0
-        // WETH = 1
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 0, 1)
-        );
-
-        console.log("CURVE_CRVUSD_ETH_CRV", address(routes[0]));
-
-        router.addRoute(crvUSDETH, routes);
-        console.log("===");
     }
 
     function _setUpPoolsETH_CRVUSD(
         Router router,
-        CurveCryptoV2Factory curveCryptoV2Factory,
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
@@ -158,23 +124,11 @@ contract RouterScript is Script {
             curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
         );
 
-
-        router.addRoute(ethCRVUSD, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 1, 0)
-        );
-
-        console.log("CURVE_CRVUSD_ETH_CRV", address(routes[0]));
-        console.log("===");
-
         router.addRoute(ethCRVUSD, routes);
     }
 
     function _setUpPoolsCRVUSD_WSTETH(
         Router router,
-        CurveCryptoV2Factory curveCryptoV2Factory,
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
@@ -205,21 +159,10 @@ contract RouterScript is Script {
         console.log("CURVE_USDT_CRVUSD", address(routes[0]));
 
         router.addRoute(crvusdWSTETH, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_TBTC_WSTETH, 0, 2)
-        );
-
-        console.log("CURVE_CRVUSD_TBTC_WSTETH", address(routes[0]));
-        console.log("===");
-
-        router.addRoute(crvusdWSTETH, routes);
     }
 
     function _setUpPoolsWSTETH_CRVUSD(
         Router router,
-        CurveCryptoV2Factory curveCryptoV2Factory,
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
@@ -246,16 +189,6 @@ contract RouterScript is Script {
         console.log("CURVE_USDT_CRVUSD", address(routes[2]));
 
         router.addRoute(wstethCRVUSD, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_TBTC_WSTETH, 2, 0)
-        );
-
-        console.log("CURVE_CRVUSD_TBTC_WSTETH", address(routes[0]));
-        console.log("===");
-
-        router.addRoute(wstethCRVUSD, routes);
     }
 
     function run() external {
@@ -264,18 +197,12 @@ contract RouterScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         Router router = new Router(vm.envAddress("OWNER"));
-        CurveCryptoV2Factory curveCryptoV2Factory = new CurveCryptoV2Factory();
         CurveStableSwapFactory curveStableSwapFactory = new CurveStableSwapFactory();
         UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();
 
         console.log("");
 
-        _setUpPools(
-            router,
-            curveCryptoV2Factory,
-            curveStableSwapFactory,
-            uniswapV3Factory
-        );
+        _setUpPools(router, curveStableSwapFactory, uniswapV3Factory);
 
         console.log("");
 

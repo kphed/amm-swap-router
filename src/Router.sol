@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.21;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
@@ -7,6 +7,11 @@ import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
 
+/**
+ * @title J.Page Router
+ * @notice Cheap and efficient cross-AMM swaps.
+ * @author kp (ppmoon69.eth)
+ */
 contract Router is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
@@ -115,11 +120,7 @@ contract Router is Ownable, ReentrancyGuard {
         IPath[][] storage routes = _routes[pair];
         uint256 lastIndex = routes.length - 1;
 
-        if (index != lastIndex) {
-            // Set the last element to the removal index (the original will be removed).
-            // Throws if the removal index is GTE to the length of the array.
-            routes[index] = routes[lastIndex];
-        }
+        if (index != lastIndex) routes[index] = routes[lastIndex];
 
         routes.pop();
 
@@ -179,16 +180,12 @@ contract Router is Ownable, ReentrancyGuard {
             }
         }
 
-        // Using the balance difference allows us to prevent malicious paths from stealing funds.
         output = outputToken.balanceOf(address(this)) - output;
 
         if (output < minOutput) revert InsufficientOutput();
 
-        // Calculate the output amount with fees applied.
         output = output.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
 
-        // If the post-fee amount is less than the minimum, transfer the minimum to the swapper,
-        // since we know that the pre-fee amount is greater than or equal to the minimum.
         if (output < minOutput) output = minOutput;
 
         emit Swap(

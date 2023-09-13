@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
@@ -74,8 +74,6 @@ contract RouterTest is Test {
 
     receive() external payable {}
 
-
-
     function _hashPair(
         address inputToken,
         address outputToken
@@ -116,13 +114,6 @@ contract RouterTest is Test {
         routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, false));
 
         router.addRoute(crvUSDETH, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 0, 1)
-        );
-
-        router.addRoute(crvUSDETH, routes);
     }
 
     function _setUpPoolsETH_CRVUSD() private {
@@ -136,16 +127,8 @@ contract RouterTest is Test {
         router.addRoute(ethCRVUSD, routes);
 
         routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, true));
-
         routes[1] = IPath(
             curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
-        );
-
-        router.addRoute(ethCRVUSD, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_ETH_CRV, 1, 0)
         );
 
         router.addRoute(ethCRVUSD, routes);
@@ -169,13 +152,6 @@ contract RouterTest is Test {
         routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false));
 
         router.addRoute(crvusdWSTETH, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_TBTC_WSTETH, 0, 2)
-        );
-
-        router.addRoute(crvusdWSTETH, routes);
     }
 
     function _setUpPoolsWSTETH_CRVUSD() private {
@@ -193,13 +169,6 @@ contract RouterTest is Test {
         routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, true));
         routes[2] = IPath(
             curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
-        );
-
-        router.addRoute(wstethCRVUSD, routes);
-
-        routes = new IPath[](1);
-        routes[0] = IPath(
-            curveCryptoV2Factory.create(CURVE_CRVUSD_TBTC_WSTETH, 2, 0)
         );
 
         router.addRoute(wstethCRVUSD, routes);

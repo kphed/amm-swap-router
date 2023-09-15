@@ -285,4 +285,12 @@ contract Router is Ownable, ReentrancyGuard {
     function getRoutes(bytes32 pair) external view returns (IPath[][] memory) {
         return _routes[pair];
     }
+
+    // Overridden to enforce 2-step ownership transfers.
+    function transferOwnership(
+        address newOwner
+    ) public payable override onlyOwner {}
+
+    // Overridden to enforce 2-step ownership transfers.
+    function renounceOwnership() public payable override onlyOwner {}
 }

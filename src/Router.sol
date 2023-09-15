@@ -17,7 +17,6 @@ contract Router is Ownable, ReentrancyGuard {
     using FixedPointMathLib for uint256;
 
     // Each swap incurs a 2 bps (0.02%) fee.
-    uint256 private constant _FEE = 2;
     uint256 private constant _FEE_DEDUCTED = 9_998;
     uint256 private constant _FEE_BASE = 10_000;
 
@@ -37,7 +36,8 @@ contract Router is Ownable, ReentrancyGuard {
         address indexed outputToken
     );
     event Swap(
-        bytes32 indexed pair,
+        address indexed inputToken,
+        address indexed outputToken,
         uint256 indexed index,
         uint256 output,
         uint256 fees
@@ -164,17 +164,17 @@ contract Router is Ownable, ReentrancyGuard {
         uint256 minOutput,
         uint256 routeIndex,
         address referrer
-    ) external nonReentrant returns (uint256 output, uint256 fees) {
+    ) external nonReentrant returns (uint256 output) {
         inputToken.safeTransferFrom(msg.sender, address(this), input);
 
-        bytes32 pair = keccak256(abi.encodePacked(inputToken, outputToken));
-        IPath[] memory route = _routes[pair][routeIndex];
+        IPath[] memory route = _routes[
+            keccak256(abi.encodePacked(inputToken, outputToken))
+        ][routeIndex];
         uint256 routeLength = route.length;
-        uint256 swapOutput = input;
         output = outputToken.balanceOf(address(this));
 
         for (uint256 i = 0; i < routeLength; ) {
-            swapOutput = route[i].swap(swapOutput);
+            input = route[i].swap(input);
 
             unchecked {
                 ++i;
@@ -186,37 +186,23 @@ contract Router is Ownable, ReentrancyGuard {
 
         if (output < minOutput) revert InsufficientOutput();
 
-        // Calculate the fee which will be distributed to the referrer and protocol.
-        fees = output.mulDiv(_FEE, _FEE_BASE);
-
         unchecked {
-            // Update the output amount to reflect the fees being taken out.
-            output = output - fees;
+            uint256 originalOutput = output;
+            output = originalOutput.mulDiv(_FEE_DEDUCTED, _FEE_BASE);
 
-            // Attempt to prevent the transaction from reverting if the post-fees amount is less than the minimum output.
-            if (output < minOutput) {
-                uint256 oldFee = fees;
+            // Will not overflow since `output` is 99.98% of `originalOutput`.
+            uint256 fees = originalOutput - output;
 
-                // The new fee is the difference between the minimum and the actual output.
-                // Will not underflow due to the comparison in the `if` conditional.
-                fees = minOutput - output;
-
-                // Throw if the discrepancy is greater than 1 BPS (i.e. half of the 2 BPS fees).
-                if (fees == 0 || ((fees / 2) < oldFee))
-                    revert InsufficientFees();
-
-                // The new output is now the minimum output.
-                output = minOutput;
-            }
-
-            emit Swap(pair, routeIndex, output, fees);
+            emit Swap(inputToken, outputToken, routeIndex, output, fees);
 
             outputToken.safeTransfer(msg.sender, output);
 
             // If the referrer is non-zero, split 50% of the fees (rounded down) with the referrer.
             // The remainder is kept by the contract which can later be withdrawn by the owner.
-            if (referrer != address(0))
+            if (fees > 1 && referrer != address(0)) {
+                // Will not overflow since `fees` is 2 or greater.
                 outputToken.safeTransfer(referrer, fees / 2);
+            }
         }
     }
 

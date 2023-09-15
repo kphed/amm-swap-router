@@ -154,7 +154,7 @@ contract Router is Ownable, ReentrancyGuard {
      * @param  input        uint256  Amount of input token to swap.
      * @param  minOutput    uint256  Minimum amount of output token to receive.
      * @param  routeIndex   uint256  Route index.
-     * @param  referrer     address
+     * @param  referrer     address  Referrer address (receives 50% of the fees if specified).
      * @return output       uint256  Amount of output token received from the swap.
      */
     function swap(
@@ -199,7 +199,7 @@ contract Router is Ownable, ReentrancyGuard {
 
             // If the referrer is non-zero, split 50% of the fees (rounded down) with the referrer.
             // The remainder is kept by the contract which can later be withdrawn by the owner.
-            if (fees > 1 && referrer != address(0)) {
+            if (referrer != address(0) && fees > 1) {
                 // Will not overflow since `fees` is 2 or greater.
                 outputToken.safeTransfer(referrer, fees / 2);
             }

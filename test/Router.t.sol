@@ -41,7 +41,7 @@ contract RouterTest is Test {
         0x109830a1AAaD605BbF02a9dFA7B0B92EC2FB7dAa;
     address public constant CRVUSD_CONTROLLER =
         0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
-    uint256 public constant ROUTER_FEE_DEDUCTED = 9_999;
+    uint256 public constant ROUTER_FEE_DEDUCTED = 9_998;
     uint256 public constant ROUTER_FEE_BASE = 10_000;
     UniswapV3Factory public immutable uniswapV3Factory = new UniswapV3Factory();
     CurveStableSwapFactory public immutable curveStableSwapFactory =
@@ -63,12 +63,11 @@ contract RouterTest is Test {
         address indexed outputToken
     );
     event Swap(
-        address indexed msgSender,
         address indexed inputToken,
         address indexed outputToken,
-        uint256 input,
+        uint256 indexed index,
         uint256 output,
-        uint256 index
+        uint256 fees
     );
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
@@ -410,7 +409,7 @@ contract RouterTest is Test {
         IPath[] memory lastRoute = routes[lastIndex];
 
         assertTrue(index != lastIndex);
-        assertEq(3, routes.length);
+        assertEq(2, routes.length);
         assertTrue(
             keccak256(abi.encodePacked(routes[index])) !=
                 keccak256(abi.encodePacked(lastRoute))
@@ -425,7 +424,7 @@ contract RouterTest is Test {
 
         routes = router.getRoutes(pair);
 
-        assertEq(2, routes.length);
+        assertEq(1, routes.length);
         assertEq(
             keccak256(abi.encodePacked(routes[index])),
             keccak256(abi.encodePacked(lastRoute))
@@ -442,7 +441,7 @@ contract RouterTest is Test {
         uint256 index = lastIndex;
         IPath[] memory lastPath = routes[lastIndex];
 
-        assertEq(3, routes.length);
+        assertEq(2, routes.length);
         assertEq(
             keccak256(abi.encodePacked(lastPath)),
             keccak256(abi.encodePacked(routes[lastIndex]))
@@ -458,7 +457,7 @@ contract RouterTest is Test {
         routes = router.getRoutes(pair);
         lastIndex = routes.length - 1;
 
-        assertEq(2, routes.length);
+        assertEq(1, routes.length);
         assertTrue(
             keccak256(abi.encodePacked(lastPath)) !=
                 keccak256(abi.encodePacked(routes[lastIndex]))
@@ -649,56 +648,10 @@ contract RouterTest is Test {
 
         vm.expectRevert(Router.InsufficientOutput.selector);
 
-        router.swap(CRVUSD, WETH, input, excessiveOutput, index);
+        router.swap(CRVUSD, WETH, input, excessiveOutput, index, address(0));
     }
 
     function testSwap() external {
-        _setUpPools();
-
-        bytes32 pair = _hashPair(CRVUSD, WETH);
-        uint256 input = 1_000e18;
-        (uint256 index, uint256 output) = router.getSwapOutput(pair, input);
-
-        _mintCRVUSD(address(this), input);
-        CRVUSD.safeApprove(address(router), input);
-
-        uint256 inputBalanceBefore = CRVUSD.balanceOf(address(this));
-        uint256 outputBalanceBefore = WETH.balanceOf(address(this));
-        uint256 inputAllowanceBefore = ERC20(CRVUSD).allowance(
-            address(this),
-            address(router)
-        );
-        uint256 feesBalanceBefore = WETH.balanceOf(address(router));
-
-        vm.expectEmit(true, true, false, true, CRVUSD);
-
-        emit Transfer(address(this), address(router), input);
-
-        vm.expectEmit(true, true, true, true, address(router));
-
-        emit Swap(address(this), CRVUSD, WETH, input, output, index);
-
-        vm.expectEmit(true, true, false, true, WETH);
-
-        emit Transfer(address(router), address(this), output);
-
-        uint256 swapOutput = router.swap(CRVUSD, WETH, input, output, index);
-        uint256 fees = swapOutput.mulDivUp(
-            ROUTER_FEE_BASE,
-            ROUTER_FEE_DEDUCTED
-        ) - swapOutput;
-
-        assertEq(output, swapOutput);
-        assertEq(inputBalanceBefore - input, CRVUSD.balanceOf(address(this)));
-        assertEq(
-            inputAllowanceBefore - input,
-            ERC20(CRVUSD).allowance(address(this), address(router))
-        );
-        assertEq(outputBalanceBefore + output, WETH.balanceOf(address(this)));
-        assertEq(feesBalanceBefore + fees, WETH.balanceOf(address(router)));
-    }
-
-    function testSwapPreFeeOutput() external {
         _setUpPools();
 
         bytes32 pair = _hashPair(CRVUSD, WETH);
@@ -708,8 +661,10 @@ contract RouterTest is Test {
             ROUTER_FEE_BASE,
             ROUTER_FEE_DEDUCTED
         );
+        uint256 expectedFees = preFeeOutput - output;
 
-        assertGt(preFeeOutput, output);
+        assertLt(output, preFeeOutput);
+        assertEq(expectedFees + output, preFeeOutput);
 
         _mintCRVUSD(address(this), input);
         CRVUSD.safeApprove(address(router), input);
@@ -728,32 +683,31 @@ contract RouterTest is Test {
 
         vm.expectEmit(true, true, true, true, address(router));
 
-        emit Swap(address(this), CRVUSD, WETH, input, preFeeOutput, index);
+        emit Swap(CRVUSD, WETH, index, output, expectedFees);
 
         vm.expectEmit(true, true, false, true, WETH);
 
-        emit Transfer(address(router), address(this), preFeeOutput);
+        emit Transfer(address(router), address(this), output);
 
-        uint256 swapOutput = router.swap(
+        uint256 actualOutput = router.swap(
             CRVUSD,
             WETH,
             input,
-            preFeeOutput,
-            index
+            output,
+            index,
+            address(0)
         );
-        uint256 fees = preFeeOutput - swapOutput;
 
-        assertGt(swapOutput, output);
-        assertEq(preFeeOutput, swapOutput);
+        assertEq(output, actualOutput);
         assertEq(inputBalanceBefore - input, CRVUSD.balanceOf(address(this)));
         assertEq(
             inputAllowanceBefore - input,
             ERC20(CRVUSD).allowance(address(this), address(router))
         );
+        assertEq(outputBalanceBefore + output, WETH.balanceOf(address(this)));
         assertEq(
-            outputBalanceBefore + preFeeOutput,
-            WETH.balanceOf(address(this))
+            feesBalanceBefore + expectedFees,
+            WETH.balanceOf(address(router))
         );
-        assertEq(feesBalanceBefore + fees, WETH.balanceOf(address(router)));
     }
 }

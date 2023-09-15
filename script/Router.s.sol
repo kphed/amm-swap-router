@@ -2,6 +2,7 @@
 pragma solidity 0.8.21;
 
 import "forge-std/Script.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
@@ -10,6 +11,8 @@ import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 
 contract RouterScript is Script {
+    using SafeTransferLib for address;
+
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
@@ -40,16 +43,6 @@ contract RouterScript is Script {
     ) private {
         _setUpPoolsCRVUSD_ETH(router, curveStableSwapFactory, uniswapV3Factory);
         _setUpPoolsETH_CRVUSD(router, curveStableSwapFactory, uniswapV3Factory);
-        _setUpPoolsCRVUSD_WSTETH(
-            router,
-            curveStableSwapFactory,
-            uniswapV3Factory
-        );
-        _setUpPoolsWSTETH_CRVUSD(
-            router,
-            curveStableSwapFactory,
-            uniswapV3Factory
-        );
     }
 
     /**
@@ -60,29 +53,52 @@ contract RouterScript is Script {
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
-        console.log("===");
-        console.log("CRVUSD-ETH");
         bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
-        IPath[] memory routes = new IPath[](2);
-        routes[0] = IPath(
+        IPath curveUSDC_CRVUSD = IPath(
             curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 1, 0)
         );
-
-        console.log("CURVE_USDC_CRVUSD", address(routes[0]));
-
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, true));
-
-        router.addRoute(crvUSDETH, routes);
-
-        routes[0] = IPath(
+        IPath uniswapUSDC_WETH = IPath(
+            uniswapV3Factory.create(UNISWAP_USDC_WETH, true)
+        );
+        IPath curveUSDT_CRVUSD = IPath(
             curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 1, 0)
         );
+        IPath uniswapWETH_USDT = IPath(
+            uniswapV3Factory.create(UNISWAP_WETH_USDT, false)
+        );
+        IPath uniswapWSTETH_WETH = IPath(
+            uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false)
+        );
 
-        console.log("CURVE_USDT_CRVUSD", address(routes[0]));
+        USDC.safeTransfer(address(curveUSDC_CRVUSD), 1);
+        CRVUSD.safeTransfer(address(curveUSDC_CRVUSD), 1);
+        USDT.safeTransfer(address(curveUSDT_CRVUSD), 1);
+        CRVUSD.safeTransfer(address(curveUSDT_CRVUSD), 1);
 
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, false));
+        IPath[] memory routes = new IPath[](2);
+        routes[0] = IPath(curveUSDC_CRVUSD);
+        routes[1] = IPath(uniswapUSDC_WETH);
 
         router.addRoute(crvUSDETH, routes);
+
+        routes[0] = IPath(curveUSDT_CRVUSD);
+        routes[1] = IPath(uniswapWETH_USDT);
+
+        router.addRoute(crvUSDETH, routes);
+
+        bytes32 crvusdWSTETH = _hashPair(CRVUSD, WSTETH);
+        routes = new IPath[](3);
+        routes[0] = IPath(curveUSDC_CRVUSD);
+        routes[1] = IPath(uniswapUSDC_WETH);
+        routes[2] = IPath(uniswapWSTETH_WETH);
+
+        router.addRoute(crvusdWSTETH, routes);
+
+        routes[0] = IPath(curveUSDT_CRVUSD);
+        routes[1] = IPath(uniswapWETH_USDT);
+        routes[2] = IPath(uniswapWSTETH_WETH);
+
+        router.addRoute(crvusdWSTETH, routes);
     }
 
     function _setUpPoolsETH_CRVUSD(
@@ -90,87 +106,50 @@ contract RouterScript is Script {
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
-        console.log("===");
-        console.log("CRVUSD-ETH");
         bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
-        IPath[] memory routes = new IPath[](2);
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, false));
-        routes[1] = IPath(
+        IPath uniswapUSDC_WETH = IPath(
+            uniswapV3Factory.create(UNISWAP_USDC_WETH, false)
+        );
+        IPath curveUSDC_CRVUSD = IPath(
             curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 0, 1)
         );
-
-        console.log("CURVE_USDC_CRVUSD", address(routes[1]));
-
-        router.addRoute(ethCRVUSD, routes);
-
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, true));
-        routes[1] = IPath(
+        IPath uniswapWETH_USDT = IPath(
+            uniswapV3Factory.create(UNISWAP_WETH_USDT, true)
+        );
+        IPath curveUSDT_CRVUSD = IPath(
             curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
         );
+        IPath uniswapWSTETH_WETH = IPath(
+            uniswapV3Factory.create(UNISWAP_WSTETH_WETH, true)
+        );
 
-        console.log("CURVE_USDT_CRVUSD", address(routes[1]));
+        USDC.safeTransfer(address(curveUSDC_CRVUSD), 1);
+        CRVUSD.safeTransfer(address(curveUSDC_CRVUSD), 1);
+        USDT.safeTransfer(address(curveUSDT_CRVUSD), 1);
+        CRVUSD.safeTransfer(address(curveUSDT_CRVUSD), 1);
+
+        IPath[] memory routes = new IPath[](2);
+        routes[0] = IPath(uniswapUSDC_WETH);
+        routes[1] = IPath(curveUSDC_CRVUSD);
 
         router.addRoute(ethCRVUSD, routes);
-    }
 
-    function _setUpPoolsCRVUSD_WSTETH(
-        Router router,
-        CurveStableSwapFactory curveStableSwapFactory,
-        UniswapV3Factory uniswapV3Factory
-    ) private {
-        console.log("===");
-        console.log("CRVUSD-WSTETH");
-        bytes32 crvusdWSTETH = _hashPair(CRVUSD, WSTETH);
-        IPath[] memory routes = new IPath[](3);
-        routes[0] = IPath(
-            curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 1, 0)
-        );
+        routes[0] = IPath(uniswapWETH_USDT);
+        routes[1] = IPath(curveUSDT_CRVUSD);
 
-        console.log("CURVE_USDC_CRVUSD", address(routes[0]));
+        router.addRoute(ethCRVUSD, routes);
 
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, true));
-        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false));
-
-        router.addRoute(crvusdWSTETH, routes);
-
-        routes[0] = IPath(
-            curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 1, 0)
-        );
-
-        console.log("CURVE_USDT_CRVUSD", address(routes[0]));
-
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, false));
-        routes[2] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false));
-
-        router.addRoute(crvusdWSTETH, routes);
-    }
-
-    function _setUpPoolsWSTETH_CRVUSD(
-        Router router,
-        CurveStableSwapFactory curveStableSwapFactory,
-        UniswapV3Factory uniswapV3Factory
-    ) private {
-        console.log("===");
-        console.log("WSTETH-CRVUSD");
         bytes32 wstethCRVUSD = _hashPair(WSTETH, CRVUSD);
-        IPath[] memory routes = new IPath[](3);
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, true));
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, false));
-        routes[2] = IPath(
-            curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 0, 1)
-        );
-
-        console.log("CURVE_USDC_CRVUSD", address(routes[2]));
+        routes = new IPath[](3);
+        routes[0] = IPath(uniswapWSTETH_WETH);
+        routes[1] = IPath(uniswapUSDC_WETH);
+        routes[2] = IPath(curveUSDC_CRVUSD);
 
         router.addRoute(wstethCRVUSD, routes);
 
-        routes[0] = IPath(uniswapV3Factory.create(UNISWAP_WSTETH_WETH, true));
-        routes[1] = IPath(uniswapV3Factory.create(UNISWAP_WETH_USDT, true));
-        routes[2] = IPath(
-            curveStableSwapFactory.create(CURVE_USDT_CRVUSD, 0, 1)
-        );
-
-        console.log("CURVE_USDT_CRVUSD", address(routes[2]));
+        routes[0] = IPath(uniswapWSTETH_WETH);
+        routes[1] = IPath(uniswapWETH_USDT);
+        routes[2] = IPath(curveUSDT_CRVUSD);
 
         router.addRoute(wstethCRVUSD, routes);
     }

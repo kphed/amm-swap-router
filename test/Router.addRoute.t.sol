@@ -8,7 +8,7 @@ import {RouterHelper} from "test/RouterHelper.sol";
 import {Router} from "src/Router.sol";
 import {IPath} from "src/paths/IPath.sol";
 
-contract Router_addRouter is Test, RouterHelper {
+contract Router_addRoute is Test, RouterHelper {
     IPath[] private route;
 
     event AddRoute(
@@ -29,7 +29,7 @@ contract Router_addRouter is Test, RouterHelper {
         route.push(IPath(uniswapV3Factory.create(UNISWAP_USDC_WETH, true)));
     }
 
-    function testCannotAddRouterUnauthorized() external {
+    function testCannotAddRouteUnauthorized() external {
         address msgSender = address(0);
 
         assertTrue(msgSender != router.owner());
@@ -40,7 +40,7 @@ contract Router_addRouter is Test, RouterHelper {
         router.addRoute(route);
     }
 
-    function testCannotAddRouterEmptyArray() external {
+    function testCannotAddRouteEmptyArray() external {
         address msgSender = router.owner();
         route = new IPath[](0);
 
@@ -50,7 +50,7 @@ contract Router_addRouter is Test, RouterHelper {
         router.addRoute(route);
     }
 
-    function testAddRouter() external {
+    function testAddRoute() external {
         address msgSender = router.owner();
         (address pairInputToken, ) = route[0].tokens();
         (, address pairOutputToken) = route[route.length - 1].tokens();

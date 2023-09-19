@@ -23,6 +23,8 @@ contract UniswapV3Factory {
         address pool,
         bool zeroForOne
     ) external returns (address poolInterface) {
+        if (pool == address(0)) revert InvalidPool();
+
         IUniswapV3 poolContract = IUniswapV3(pool);
         address inputToken = zeroForOne
             ? poolContract.token0()

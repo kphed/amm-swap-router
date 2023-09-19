@@ -51,8 +51,7 @@ contract Router is Ownable, ReentrancyGuard {
     error InsufficientFees();
     error InvalidPair();
     error EmptyArray();
-    error DuplicateRoute();
-    error InvalidRoute();
+    error InvalidRouteTokens();
 
     /**
      * @param initialOwner  address  The initial owner of the contract.
@@ -87,15 +86,18 @@ contract Router is Ownable, ReentrancyGuard {
 
         if (newRouteLength == 0) revert EmptyArray();
 
-        (address pairInputToken, ) = newRoute[0].tokens();
-        (, address pairOutputToken) = newRoute[newRouteLength - 1].tokens();
-        IPath[] storage route = _routes[
-            keccak256(abi.encodePacked(pairInputToken, pairOutputToken))
-        ].push();
-
-        emit AddRoute(pairInputToken, pairOutputToken, newRoute);
-
         unchecked {
+            (address pairInputToken, ) = newRoute[0].tokens();
+
+            // Will not underflow since route length is 1+.
+            (, address pairOutputToken) = newRoute[newRouteLength - 1].tokens();
+
+            IPath[] storage route = _routes[
+                keccak256(abi.encodePacked(pairInputToken, pairOutputToken))
+            ].push();
+
+            emit AddRoute(pairInputToken, pairOutputToken, newRoute);
+
             for (uint256 i = 0; i < newRouteLength; ++i) {
                 IPath path = newRoute[i];
                 (address inputToken, address outputToken) = path.tokens();

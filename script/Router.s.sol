@@ -53,7 +53,6 @@ contract RouterScript is Script {
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
-        bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
         IPath curveUSDC_CRVUSD = IPath(
             curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 1, 0)
         );
@@ -79,26 +78,25 @@ contract RouterScript is Script {
         routes[0] = IPath(curveUSDC_CRVUSD);
         routes[1] = IPath(uniswapUSDC_WETH);
 
-        router.addRoute(crvUSDETH, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(curveUSDT_CRVUSD);
         routes[1] = IPath(uniswapWETH_USDT);
 
-        router.addRoute(crvUSDETH, routes);
+        router.addRoute(routes);
 
-        bytes32 crvusdWSTETH = _hashPair(CRVUSD, WSTETH);
         routes = new IPath[](3);
         routes[0] = IPath(curveUSDC_CRVUSD);
         routes[1] = IPath(uniswapUSDC_WETH);
         routes[2] = IPath(uniswapWSTETH_WETH);
 
-        router.addRoute(crvusdWSTETH, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(curveUSDT_CRVUSD);
         routes[1] = IPath(uniswapWETH_USDT);
         routes[2] = IPath(uniswapWSTETH_WETH);
 
-        router.addRoute(crvusdWSTETH, routes);
+        router.addRoute(routes);
     }
 
     function _setUpPoolsETH_CRVUSD(
@@ -106,7 +104,6 @@ contract RouterScript is Script {
         CurveStableSwapFactory curveStableSwapFactory,
         UniswapV3Factory uniswapV3Factory
     ) private {
-        bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
         IPath uniswapUSDC_WETH = IPath(
             uniswapV3Factory.create(UNISWAP_USDC_WETH, false)
         );
@@ -132,26 +129,25 @@ contract RouterScript is Script {
         routes[0] = IPath(uniswapUSDC_WETH);
         routes[1] = IPath(curveUSDC_CRVUSD);
 
-        router.addRoute(ethCRVUSD, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(uniswapWETH_USDT);
         routes[1] = IPath(curveUSDT_CRVUSD);
 
-        router.addRoute(ethCRVUSD, routes);
+        router.addRoute(routes);
 
-        bytes32 wstethCRVUSD = _hashPair(WSTETH, CRVUSD);
         routes = new IPath[](3);
         routes[0] = IPath(uniswapWSTETH_WETH);
         routes[1] = IPath(uniswapUSDC_WETH);
         routes[2] = IPath(curveUSDC_CRVUSD);
 
-        router.addRoute(wstethCRVUSD, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(uniswapWSTETH_WETH);
         routes[1] = IPath(uniswapWETH_USDT);
         routes[2] = IPath(curveUSDT_CRVUSD);
 
-        router.addRoute(wstethCRVUSD, routes);
+        router.addRoute(routes);
     }
 
     function run() external {

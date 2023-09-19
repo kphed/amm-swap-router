@@ -28,7 +28,11 @@ contract Router is Ownable, ReentrancyGuard {
         address indexed recipient,
         uint256 amount
     );
-    event AddRoute(bytes32 indexed pair, IPath[] newRoute);
+    event AddRoute(
+        address indexed inputToken,
+        address indexed outputToken,
+        IPath[] newRoute
+    );
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(
         IPath indexed path,
@@ -47,6 +51,8 @@ contract Router is Ownable, ReentrancyGuard {
     error InsufficientFees();
     error InvalidPair();
     error EmptyArray();
+    error DuplicateRoute();
+    error InvalidRoute();
 
     /**
      * @param initialOwner  address  The initial owner of the contract.
@@ -68,27 +74,26 @@ contract Router is Ownable, ReentrancyGuard {
     ) external onlyOwner {
         emit WithdrawERC20(token, recipient, amount);
 
+        // Throws if `recipient` is the zero address or if `amount` exceeds our balance.
         token.safeTransfer(recipient, amount);
     }
 
     /**
      * @notice Add a route.
-     * @param  pair      bytes32  Token pair.
      * @param  newRoute  IPath[]  New swap route.
      */
-    function addRoute(
-        bytes32 pair,
-        IPath[] calldata newRoute
-    ) external onlyOwner {
-        if (pair == bytes32(0)) revert InvalidPair();
-
+    function addRoute(IPath[] calldata newRoute) external onlyOwner {
         uint256 newRouteLength = newRoute.length;
 
         if (newRouteLength == 0) revert EmptyArray();
 
-        IPath[] storage route = _routes[pair].push();
+        (address pairInputToken, ) = newRoute[0].tokens();
+        (, address pairOutputToken) = newRoute[newRouteLength - 1].tokens();
+        IPath[] storage route = _routes[
+            keccak256(abi.encodePacked(pairInputToken, pairOutputToken))
+        ].push();
 
-        emit AddRoute(pair, newRoute);
+        emit AddRoute(pairInputToken, pairOutputToken, newRoute);
 
         unchecked {
             for (uint256 i = 0; i < newRouteLength; ++i) {

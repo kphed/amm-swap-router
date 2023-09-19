@@ -74,6 +74,10 @@ contract Router_removeRoute is Test, RouterHelper {
 
         address msgSender = router.owner();
         bytes32 removedRoute = keccak256(abi.encodePacked(routesBefore[index]));
+        uint256 lastIndex = routesBefore.length - 1;
+        bytes32 lastRoute = keccak256(
+            abi.encodePacked(routesBefore[lastIndex])
+        );
 
         assertTrue(index < routesBefore.length);
 
@@ -91,6 +95,11 @@ contract Router_removeRoute is Test, RouterHelper {
         for (uint256 i = 0; i < routes.length; ++i) {
             // Check the routes list to confirm that the route was removed.
             assertTrue(removedRoute != keccak256(abi.encodePacked(routes[i])));
+        }
+
+        // If the removal index was not the last route index, then the last element replaced the element.
+        if (index != lastIndex) {
+            assertEq(lastRoute, keccak256(abi.encodePacked(routes[index])));
         }
     }
 }

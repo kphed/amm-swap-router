@@ -44,7 +44,6 @@ contract RouterHelper is Test {
         new CurveCryptoV2Factory();
     Router public immutable router = new Router(address(this));
 
-    event AddRoute(bytes32 indexed pair, IPath[] newRoute);
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(
         IPath indexed path,
@@ -68,9 +67,9 @@ contract RouterHelper is Test {
         deal(WSTETH, address(this), 1_000e6);
     }
 
-    function setUp() external {
-        _setUpPoolsCRVUSD_ETH();
-        _setUpPoolsETH_CRVUSD();
+    function _setUpRoutes() internal {
+        _setUpRoutesCRVUSD_ETH();
+        _setUpRoutesETH_CRVUSD();
     }
 
     function _hashPair(
@@ -110,8 +109,7 @@ contract RouterHelper is Test {
         }
     }
 
-    function _setUpPoolsCRVUSD_ETH() private {
-        bytes32 crvUSDETH = _hashPair(CRVUSD, WETH);
+    function _setUpRoutesCRVUSD_ETH() private {
         IPath curveUSDC_CRVUSD = IPath(
             curveStableSwapFactory.create(CURVE_USDC_CRVUSD, 1, 0)
         );
@@ -137,30 +135,28 @@ contract RouterHelper is Test {
         routes[0] = IPath(curveUSDC_CRVUSD);
         routes[1] = IPath(uniswapUSDC_WETH);
 
-        router.addRoute(crvUSDETH, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(curveUSDT_CRVUSD);
         routes[1] = IPath(uniswapWETH_USDT);
 
-        router.addRoute(crvUSDETH, routes);
+        router.addRoute(routes);
 
-        bytes32 crvusdWSTETH = _hashPair(CRVUSD, WSTETH);
         routes = new IPath[](3);
         routes[0] = IPath(curveUSDC_CRVUSD);
         routes[1] = IPath(uniswapUSDC_WETH);
         routes[2] = IPath(uniswapWSTETH_WETH);
 
-        router.addRoute(crvusdWSTETH, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(curveUSDT_CRVUSD);
         routes[1] = IPath(uniswapWETH_USDT);
         routes[2] = IPath(uniswapWSTETH_WETH);
 
-        router.addRoute(crvusdWSTETH, routes);
+        router.addRoute(routes);
     }
 
-    function _setUpPoolsETH_CRVUSD() private {
-        bytes32 ethCRVUSD = _hashPair(WETH, CRVUSD);
+    function _setUpRoutesETH_CRVUSD() private {
         IPath uniswapUSDC_WETH = IPath(
             uniswapV3Factory.create(UNISWAP_USDC_WETH, false)
         );
@@ -186,25 +182,24 @@ contract RouterHelper is Test {
         routes[0] = IPath(uniswapUSDC_WETH);
         routes[1] = IPath(curveUSDC_CRVUSD);
 
-        router.addRoute(ethCRVUSD, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(uniswapWETH_USDT);
         routes[1] = IPath(curveUSDT_CRVUSD);
 
-        router.addRoute(ethCRVUSD, routes);
+        router.addRoute(routes);
 
-        bytes32 wstethCRVUSD = _hashPair(WSTETH, CRVUSD);
         routes = new IPath[](3);
         routes[0] = IPath(uniswapWSTETH_WETH);
         routes[1] = IPath(uniswapUSDC_WETH);
         routes[2] = IPath(curveUSDC_CRVUSD);
 
-        router.addRoute(wstethCRVUSD, routes);
+        router.addRoute(routes);
 
         routes[0] = IPath(uniswapWSTETH_WETH);
         routes[1] = IPath(uniswapWETH_USDT);
         routes[2] = IPath(curveUSDT_CRVUSD);
 
-        router.addRoute(wstethCRVUSD, routes);
+        router.addRoute(routes);
     }
 }

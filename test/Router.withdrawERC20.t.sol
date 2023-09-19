@@ -9,12 +9,12 @@ import {RouterHelper} from "test/RouterHelper.sol";
 contract Router_withdrawERC20 is Test, RouterHelper {
     using SafeTransferLib for address;
 
-    event Transfer(address indexed from, address indexed to, uint256 amount);
     event WithdrawERC20(
         address indexed token,
         address indexed recipient,
         uint256 amount
     );
+    event Transfer(address indexed from, address indexed to, uint256 amount);
 
     function testCannotWithdrawERC20Unauthorized() external {
         address msgSender = address(0);

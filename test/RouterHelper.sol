@@ -44,7 +44,6 @@ contract RouterHelper is Test {
         new CurveCryptoV2Factory();
     Router public immutable router = new Router(address(this));
 
-    event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(
         IPath indexed path,
         address indexed inputToken,

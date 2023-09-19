@@ -124,12 +124,16 @@ contract Router is Ownable, ReentrancyGuard {
     function removeRoute(bytes32 pair, uint256 index) external onlyOwner {
         if (pair == bytes32(0)) revert InvalidPair();
 
-        IPath[][] storage routes = _routes[pair];
-        uint256 lastIndex = routes.length - 1;
+        unchecked {
+            IPath[][] storage routes = _routes[pair];
 
-        if (index != lastIndex) routes[index] = routes[lastIndex];
+            // Should be checked by the owner before calling.
+            uint256 lastIndex = routes.length - 1;
 
-        routes.pop();
+            if (index != lastIndex) routes[index] = routes[lastIndex];
+
+            routes.pop();
+        }
 
         emit RemoveRoute(pair, index);
     }

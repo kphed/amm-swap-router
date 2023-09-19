@@ -158,6 +158,13 @@ contract RouterScript is Script {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
 
         Router router = new Router(vm.envAddress("OWNER"));
+
+        WSTETH.safeTransfer(address(router), 1);
+        WETH.safeTransfer(address(router), 1);
+        USDC.safeTransfer(address(router), 1);
+        USDT.safeTransfer(address(router), 1);
+        CRVUSD.safeTransfer(address(router), 1);
+
         CurveStableSwapFactory curveStableSwapFactory = new CurveStableSwapFactory();
         UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();
 

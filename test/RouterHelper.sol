@@ -2,8 +2,6 @@
 pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
-import {ERC20} from "solady/tokens/ERC20.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {Router} from "src/Router.sol";
@@ -46,11 +44,6 @@ contract RouterHelper is Test {
         new CurveCryptoV2Factory();
     Router public immutable router = new Router(address(this));
 
-    event WithdrawERC20(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
-    );
     event AddRoute(bytes32 indexed pair, IPath[] newRoute);
     event RemoveRoute(bytes32 indexed pair, uint256 indexed index);
     event ApprovePath(
@@ -65,7 +58,6 @@ contract RouterHelper is Test {
         uint256 output,
         uint256 fees
     );
-    event Transfer(address indexed from, address indexed to, uint256 amount);
 
     receive() external payable {}
 

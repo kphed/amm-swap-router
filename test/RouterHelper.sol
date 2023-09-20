@@ -9,6 +9,7 @@ import {IPath} from "src/interfaces/IPath.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {CurveCryptoV2Factory} from "src/paths/CurveCryptoV2Factory.sol";
+import {ISignatureTransfer} from "src/interfaces/ISignatureTransfer.sol";
 
 contract RouterHelper is Test {
     using SafeTransferLib for address;
@@ -37,6 +38,8 @@ contract RouterHelper is Test {
         0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
     uint256 public constant ROUTER_FEE_DEDUCTED = 9_998;
     uint256 public constant ROUTER_FEE_BASE = 10_000;
+    ISignatureTransfer private constant _PERMIT_2 =
+        ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     UniswapV3Factory public immutable uniswapV3Factory = new UniswapV3Factory();
     CurveStableSwapFactory public immutable curveStableSwapFactory =
         new CurveStableSwapFactory();
@@ -59,6 +62,12 @@ contract RouterHelper is Test {
         deal(USDT, address(this), 1_000e6);
         deal(USDC, address(this), 1_000e6);
         deal(WSTETH, address(this), 1_000e6);
+
+        USDT.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
+        USDC.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
+        CRVUSD.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
+        WETH.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
+        WSTETH.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
     }
 
     function _setUpRoutes() internal {

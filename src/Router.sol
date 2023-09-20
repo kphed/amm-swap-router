@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity 0.8.19;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {SignatureTransfer} from "permit2/SignatureTransfer.sol";
-import {IPath} from "src/paths/IPath.sol";
+import {ISignatureTransfer} from "src/interfaces/ISignatureTransfer.sol";
+import {IPath} from "src/interfaces/IPath.sol";
 import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
 
 /**
@@ -18,8 +18,8 @@ contract Router is Ownable, ReentrancyGuard {
     using FixedPointMathLib for uint256;
 
     struct Permit2Swap {
-        SignatureTransfer.PermitTransferFrom permit;
-        SignatureTransfer.SignatureTransferDetails transferDetails;
+        ISignatureTransfer.PermitTransferFrom permit;
+        ISignatureTransfer.SignatureTransferDetails transferDetails;
         address owner;
         bytes signature;
     }
@@ -29,8 +29,8 @@ contract Router is Ownable, ReentrancyGuard {
     uint256 private constant _FEE_BASE = 10_000;
 
     // Canonical Uniswap Permit2 contract address.
-    SignatureTransfer private constant _PERMIT_2 =
-        0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    ISignatureTransfer private constant _PERMIT_2 =
+        ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // Swap routes for a given token pair - each route is comprised of 1 or more paths.
     mapping(bytes32 pair => IPath[][] path) private _routes;
@@ -68,7 +68,7 @@ contract Router is Ownable, ReentrancyGuard {
     /**
      * @param initialOwner  address  The initial owner of the contract.
      */
-    constructor(address initialOwner, address permit2) {
+    constructor(address initialOwner) {
         _initializeOwner(initialOwner);
     }
 
@@ -211,7 +211,7 @@ contract Router is Ownable, ReentrancyGuard {
             }
         }
 
-        // The diff between the balances before/after the swaps is the canonical output.
+        // The difference between the balances before/after the swaps is the canonical output.
         output = outputToken.balanceOf(address(this)) - output;
 
         if (output < minOutput) revert InsufficientOutput();
@@ -225,8 +225,8 @@ contract Router is Ownable, ReentrancyGuard {
 
             emit Swap(inputToken, outputToken, routeIndex, output, fees);
 
-            // Transfer the output to the permit2 owner (i.e. token transferrer), not `msg.sender`!
-            // This enables users to delegate swaps and their associated gas fees.
+            // Transfer the output to the permit2 owner (i.e. spender), not `msg.sender`!
+            // This enables token holders to delegate swaps and the associated gas fees.
             outputToken.safeTransfer(permit2Swap.owner, output);
 
             // If the referrer is non-zero, split 50% of the fees (rounded down) with the referrer.

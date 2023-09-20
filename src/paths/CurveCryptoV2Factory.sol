@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity 0.8.19;
 
 import {LibClone} from "solady/utils/LibClone.sol";
 import {ICurveCryptoV2, CurveCryptoV2} from "src/paths/CurveCryptoV2.sol";
-import {ICurveCryptoV2PoolFactory} from "src/paths/ICurveCryptoV2PoolFactory.sol";
+import {ICurveCryptoV2PoolFactory} from "src/interfaces/ICurveCryptoV2PoolFactory.sol";
 
 contract CurveCryptoV2Factory {
     ICurveCryptoV2PoolFactory private constant _POOL_FACTORY =

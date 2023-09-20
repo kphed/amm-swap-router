@@ -4,6 +4,7 @@ pragma solidity 0.8.21;
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+import {SignatureTransfer} from "permit2/SignatureTransfer.sol";
 import {IPath} from "src/paths/IPath.sol";
 import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
 
@@ -16,9 +17,20 @@ contract Router is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
+    struct Permit2Swap {
+        SignatureTransfer.PermitTransferFrom permit;
+        SignatureTransfer.SignatureTransferDetails transferDetails;
+        address owner;
+        bytes signature;
+    }
+
     // Each swap incurs a 2 bps (0.02%) fee.
     uint256 private constant _FEE_DEDUCTED = 9_998;
     uint256 private constant _FEE_BASE = 10_000;
+
+    // Canonical Uniswap Permit2 contract address.
+    SignatureTransfer private constant _PERMIT_2 =
+        0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     // Swap routes for a given token pair - each route is comprised of 1 or more paths.
     mapping(bytes32 pair => IPath[][] path) private _routes;
@@ -56,7 +68,7 @@ contract Router is Ownable, ReentrancyGuard {
     /**
      * @param initialOwner  address  The initial owner of the contract.
      */
-    constructor(address initialOwner) {
+    constructor(address initialOwner, address permit2) {
         _initializeOwner(initialOwner);
     }
 
@@ -160,13 +172,14 @@ contract Router is Ownable, ReentrancyGuard {
 
     /**
      * @notice Swap an input token for an output token over a series of paths.
-     * @param  inputToken   address  Token to swap.
-     * @param  outputToken  address  Token to receive.
-     * @param  input        uint256  Amount of input token to swap.
-     * @param  minOutput    uint256  Minimum amount of output token to receive.
-     * @param  routeIndex   uint256  Route index.
-     * @param  referrer     address  Referrer address (receives 50% of the fees if specified).
-     * @return output       uint256  Amount of output token received from the swap.
+     * @param  inputToken                address      Token to swap.
+     * @param  outputToken               address      Token to receive.
+     * @param  input                     uint256      Amount of input token to swap.
+     * @param  minOutput                 uint256      Minimum amount of output token to receive.
+     * @param  routeIndex                uint256      Route index.
+     * @param  referrer                  address      Referrer address (receives 50% of the fees if specified).
+     * @param  permit2Swap               Permit2Swap  Data for carrying out a permitTransferFrom.
+     * @return output                    uint256      Amount of output token received from the swap.
      */
     function swap(
         address inputToken,
@@ -174,9 +187,15 @@ contract Router is Ownable, ReentrancyGuard {
         uint256 input,
         uint256 minOutput,
         uint256 routeIndex,
-        address referrer
+        address referrer,
+        Permit2Swap calldata permit2Swap
     ) external nonReentrant returns (uint256 output) {
-        inputToken.safeTransferFrom(msg.sender, address(this), input);
+        _PERMIT_2.permitTransferFrom(
+            permit2Swap.permit,
+            permit2Swap.transferDetails,
+            permit2Swap.owner,
+            permit2Swap.signature
+        );
 
         IPath[] memory route = _routes[
             keccak256(abi.encodePacked(inputToken, outputToken))
@@ -206,7 +225,9 @@ contract Router is Ownable, ReentrancyGuard {
 
             emit Swap(inputToken, outputToken, routeIndex, output, fees);
 
-            outputToken.safeTransfer(msg.sender, output);
+            // Transfer the output to the permit2 owner (i.e. token transferrer), not `msg.sender`!
+            // This enables users to delegate swaps and their associated gas fees.
+            outputToken.safeTransfer(permit2Swap.owner, output);
 
             // If the referrer is non-zero, split 50% of the fees (rounded down) with the referrer.
             // The remainder is kept by the contract which can later be withdrawn by the owner.

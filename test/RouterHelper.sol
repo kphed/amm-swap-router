@@ -10,6 +10,7 @@ import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {CurveCryptoV2Factory} from "src/paths/CurveCryptoV2Factory.sol";
 import {ISignatureTransfer} from "src/interfaces/ISignatureTransfer.sol";
+import {PermitHash} from "test/lib/PermitHash.sol";
 
 contract RouterHelper is Test {
     using SafeTransferLib for address;
@@ -38,8 +39,15 @@ contract RouterHelper is Test {
         0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
     uint256 public constant ROUTER_FEE_DEDUCTED = 9_998;
     uint256 public constant ROUTER_FEE_BASE = 10_000;
-    ISignatureTransfer private constant _PERMIT_2 =
+    ISignatureTransfer public constant PERMIT2 =
         ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+
+    // Anvil test account and private key.
+    address public constant TEST_ACCOUNT =
+        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    uint256 public constant TEST_ACCOUNT_PRIVATE_KEY =
+        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+
     UniswapV3Factory public immutable uniswapV3Factory = new UniswapV3Factory();
     CurveStableSwapFactory public immutable curveStableSwapFactory =
         new CurveStableSwapFactory();
@@ -63,11 +71,16 @@ contract RouterHelper is Test {
         deal(USDC, address(this), 1_000e6);
         deal(WSTETH, address(this), 1_000e6);
 
-        USDT.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
-        USDC.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
-        CRVUSD.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
-        WETH.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
-        WSTETH.safeApproveWithRetry(address(_PERMIT_2), type(uint256).max);
+        vm.startPrank(TEST_ACCOUNT);
+
+        // For testing EOA-signed Permit2 transfers.
+        USDT.safeApproveWithRetry(address(PERMIT2), type(uint256).max);
+        USDC.safeApproveWithRetry(address(PERMIT2), type(uint256).max);
+        CRVUSD.safeApproveWithRetry(address(PERMIT2), type(uint256).max);
+        WETH.safeApproveWithRetry(address(PERMIT2), type(uint256).max);
+        WSTETH.safeApproveWithRetry(address(PERMIT2), type(uint256).max);
+
+        vm.stopPrank();
     }
 
     function _setUpRoutes() internal {
@@ -204,5 +217,39 @@ contract RouterHelper is Test {
         routes[2] = IPath(curveUSDT_CRVUSD);
 
         router.addRoute(routes);
+    }
+
+    function _signPermitTransferFrom(
+        address token,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            TEST_ACCOUNT_PRIVATE_KEY,
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    PERMIT2.DOMAIN_SEPARATOR(),
+                    keccak256(
+                        abi.encode(
+                            PermitHash._PERMIT_TRANSFER_FROM_TYPEHASH,
+                            keccak256(
+                                abi.encode(
+                                    PermitHash._TOKEN_PERMISSIONS_TYPEHASH,
+                                    token,
+                                    amount
+                                )
+                            ),
+                            address(router),
+                            nonce,
+                            deadline
+                        )
+                    )
+                )
+            )
+        );
+
+        return abi.encodePacked(r, s, v);
     }
 }

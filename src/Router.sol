@@ -17,10 +17,10 @@ contract Router is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
-    struct Permit2Swap {
-        ISignatureTransfer.PermitTransferFrom permit;
-        ISignatureTransfer.SignatureTransferDetails transferDetails;
+    struct PermitParams {
         address owner;
+        uint256 nonce;
+        uint256 deadline;
         bytes signature;
     }
 
@@ -29,7 +29,7 @@ contract Router is Ownable, ReentrancyGuard {
     uint256 private constant _FEE_BASE = 10_000;
 
     // Canonical Uniswap Permit2 contract address.
-    ISignatureTransfer private constant _PERMIT_2 =
+    ISignatureTransfer private constant _PERMIT2 =
         ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // Swap routes for a given token pair - each route is comprised of 1 or more paths.
@@ -172,14 +172,14 @@ contract Router is Ownable, ReentrancyGuard {
 
     /**
      * @notice Swap an input token for an output token over a series of paths.
-     * @param  inputToken                address      Token to swap.
-     * @param  outputToken               address      Token to receive.
-     * @param  input                     uint256      Amount of input token to swap.
-     * @param  minOutput                 uint256      Minimum amount of output token to receive.
-     * @param  routeIndex                uint256      Route index.
-     * @param  referrer                  address      Referrer address (receives 50% of the fees if specified).
-     * @param  permit2Swap               Permit2Swap  Data for carrying out a permitTransferFrom.
-     * @return output                    uint256      Amount of output token received from the swap.
+     * @param  inputToken    address       Token to swap.
+     * @param  outputToken   address       Token to receive.
+     * @param  input         uint256       Amount of input token to swap.
+     * @param  minOutput     uint256       Minimum amount of output token to receive.
+     * @param  routeIndex    uint256       Route index.
+     * @param  referrer      address       Referrer address (receives 50% of the fees if specified).
+     * @param  permitParams  PermitParams  Data for carrying out a permitTransferFrom.
+     * @return output        uint256       Amount of output token received from the swap.
      */
     function swap(
         address inputToken,
@@ -188,13 +188,25 @@ contract Router is Ownable, ReentrancyGuard {
         uint256 minOutput,
         uint256 routeIndex,
         address referrer,
-        Permit2Swap calldata permit2Swap
+        PermitParams calldata permitParams
     ) external nonReentrant returns (uint256 output) {
-        _PERMIT_2.permitTransferFrom(
-            permit2Swap.permit,
-            permit2Swap.transferDetails,
-            permit2Swap.owner,
-            permit2Swap.signature
+        // Marshall struct arguments based on swap input values for validation
+        // purposes and to reduce external calls for verifying balances.
+        _PERMIT2.permitTransferFrom(
+            ISignatureTransfer.PermitTransferFrom({
+                permitted: ISignatureTransfer.TokenPermissions({
+                    token: inputToken,
+                    amount: input
+                }),
+                nonce: permitParams.nonce,
+                deadline: permitParams.deadline
+            }),
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: input
+            }),
+            permitParams.owner,
+            permitParams.signature
         );
 
         IPath[] memory route = _routes[
@@ -227,7 +239,7 @@ contract Router is Ownable, ReentrancyGuard {
 
             // Transfer the output to the permit2 owner (i.e. spender), not `msg.sender`!
             // This enables token holders to delegate swaps and the associated gas fees.
-            outputToken.safeTransfer(permit2Swap.owner, output);
+            outputToken.safeTransfer(permitParams.owner, output);
 
             // If the referrer is non-zero, split 50% of the fees (rounded down) with the referrer.
             // The remainder is kept by the contract which can later be withdrawn by the owner.

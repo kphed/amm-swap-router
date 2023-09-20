@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import {LibClone} from "solady/utils/LibClone.sol";
 import {ICurveStableSwap, CurveStableSwap} from "src/paths/CurveStableSwap.sol";
-import {ICurveStableSwapPoolFactory} from "src/paths/ICurveStableSwapPoolFactory.sol";
+import {ICurveStableSwapPoolFactory} from "src/interfaces/ICurveStableSwapPoolFactory.sol";
 
 contract CurveStableSwapFactory {
     ICurveStableSwapPoolFactory private constant _POOL_FACTORY =

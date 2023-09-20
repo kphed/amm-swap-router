@@ -7,7 +7,7 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {RouterHelper} from "test/RouterHelper.sol";
 import {Router} from "src/Router.sol";
-import {IPath} from "src/paths/IPath.sol";
+import {IPath} from "src/interfaces/IPath.sol";
 
 contract Router_approvePath is Test, RouterHelper {
     using SafeTransferLib for address;

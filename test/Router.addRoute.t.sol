@@ -6,7 +6,7 @@ import {ERC20} from "solady/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {RouterHelper} from "test/RouterHelper.sol";
 import {Router} from "src/Router.sol";
-import {IPath} from "src/paths/IPath.sol";
+import {IPath} from "src/interfaces/IPath.sol";
 
 contract Router_addRoute is Test, RouterHelper {
     IPath[] private route;

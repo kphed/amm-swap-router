@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {RouterHelper} from "test/RouterHelper.sol";
-import {IPath} from "src/paths/IPath.sol";
+import {IPath} from "src/interfaces/IPath.sol";
 import {Router} from "src/Router.sol";
 
 contract Router_removeRoute is Test, RouterHelper {

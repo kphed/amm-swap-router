@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 import "forge-std/Script.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Router} from "src/Router.sol";
-import {IPath} from "src/paths/IPath.sol";
+import {IPath} from "src/interfaces/IPath.sol";
 import {CurveStableSwap} from "src/paths/CurveStableSwap.sol";
 import {UniswapV3} from "src/paths/UniswapV3.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";

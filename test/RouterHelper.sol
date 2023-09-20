@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {Router} from "src/Router.sol";
-import {IPath} from "src/paths/IPath.sol";
+import {IPath} from "src/interfaces/IPath.sol";
 import {UniswapV3Factory} from "src/paths/UniswapV3Factory.sol";
 import {CurveStableSwapFactory} from "src/paths/CurveStableSwapFactory.sol";
 import {CurveCryptoV2Factory} from "src/paths/CurveCryptoV2Factory.sol";

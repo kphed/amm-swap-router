@@ -14,8 +14,8 @@ contract UniswapV3Factory {
     uint160 private constant _MIN_SQRT_RATIO = 4295128740;
     uint160 private constant _MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970341;
-
     address public immutable implementation = address(new UniswapV3());
+    mapping(bytes32 params => address clone) public deployments;
 
     error InvalidPool();
 
@@ -24,6 +24,13 @@ contract UniswapV3Factory {
         bool zeroForOne
     ) external returns (address poolInterface) {
         if (pool == address(0)) revert InvalidPool();
+
+        bytes32 deploymentKey = keccak256(abi.encodePacked(pool, zeroForOne));
+
+        // If a clone with the same args has already been deployed, return it.
+        if (deployments[deploymentKey] != address(0)) {
+            return deployments[deploymentKey];
+        }
 
         IUniswapV3 poolContract = IUniswapV3(pool);
         address inputToken = zeroForOne
@@ -39,16 +46,16 @@ contract UniswapV3Factory {
             _POOL_FACTORY.getPool(inputToken, outputToken, poolContract.fee())
         ) revert InvalidPool();
 
-        return
-            LibClone.clone(
-                implementation,
-                abi.encodePacked(
-                    pool,
-                    zeroForOne ? poolContract.token0() : poolContract.token1(),
-                    zeroForOne ? poolContract.token1() : poolContract.token0(),
-                    keccak256(abi.encodePacked(zeroForOne)),
-                    zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
-                )
-            );
+        poolInterface = LibClone.clone(
+            implementation,
+            abi.encodePacked(
+                pool,
+                zeroForOne ? poolContract.token0() : poolContract.token1(),
+                zeroForOne ? poolContract.token1() : poolContract.token0(),
+                keccak256(abi.encodePacked(zeroForOne)),
+                zeroForOne ? _MIN_SQRT_RATIO : _MAX_SQRT_RATIO
+            )
+        );
+        deployments[deploymentKey] = poolInterface;
     }
 }

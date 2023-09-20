@@ -33,7 +33,7 @@ contract Router is Ownable, ReentrancyGuard {
         ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // Swap routes for a given token pair - each route is comprised of 1 or more paths.
-    mapping(bytes32 pair => IPath[][] path) private _routes;
+    mapping(bytes32 pair => IPath[][] routes) private _routes;
 
     event WithdrawERC20(
         address indexed token,
@@ -60,10 +60,8 @@ contract Router is Ownable, ReentrancyGuard {
     );
 
     error InsufficientOutput();
-    error InsufficientFees();
     error InvalidPair();
     error EmptyArray();
-    error InvalidRouteTokens();
 
     /**
      * @param initialOwner  address  The initial owner of the contract.

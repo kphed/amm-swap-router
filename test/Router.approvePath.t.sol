@@ -65,10 +65,6 @@ contract Router_approvePath is Test, RouterHelper {
 
         vm.stopPrank();
         vm.prank(msgSender);
-        vm.expectEmit(true, true, true, true, address(router));
-
-        emit ApprovePath(path, pathInputToken, pathOutputToken);
-
         vm.expectEmit(true, true, false, true, pathInputToken);
 
         emit Approval(address(router), address(path), type(uint256).max);
@@ -76,6 +72,10 @@ contract Router_approvePath is Test, RouterHelper {
         vm.expectEmit(true, true, false, true, pathOutputToken);
 
         emit Approval(address(router), address(path), type(uint256).max);
+
+        vm.expectEmit(true, true, true, true, address(router));
+
+        emit ApprovePath(path, pathInputToken, pathOutputToken);
 
         router.approvePath(pair, routeIndex, pathIndex);
 

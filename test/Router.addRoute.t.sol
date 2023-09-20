@@ -58,9 +58,6 @@ contract Router_addRoute is Test, RouterHelper {
         IPath[][] memory routesBefore = router.getRoutes(pair);
 
         vm.prank(msgSender);
-        vm.expectEmit(true, true, false, true, address(router));
-
-        emit AddRoute(pairInputToken, pairOutputToken, route);
 
         for (uint256 i = 0; i < route.length; ++i) {
             (address inputToken, address outputToken) = route[i].tokens();
@@ -81,6 +78,10 @@ contract Router_addRoute is Test, RouterHelper {
                 type(uint256).max
             );
         }
+
+        vm.expectEmit(true, true, false, true, address(router));
+
+        emit AddRoute(pairInputToken, pairOutputToken, route);
 
         router.addRoute(route);
 

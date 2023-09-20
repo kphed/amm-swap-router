@@ -61,16 +61,13 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         uint256 routerBalanceBefore = CRVUSD.balanceOf(address(router));
 
         vm.prank(msgSender);
-
-        // emit WithdrawERC20(address indexed,address indexed,uint256);
-        vm.expectEmit(true, true, false, true, address(router));
-
-        emit WithdrawERC20(CRVUSD, recipient, amount);
-
-        // emit Transfer(address indexed,address indexed,uint256);
         vm.expectEmit(true, true, false, true, CRVUSD);
 
         emit Transfer(address(router), recipient, amount);
+
+        vm.expectEmit(true, true, false, true, address(router));
+
+        emit WithdrawERC20(CRVUSD, recipient, amount);
 
         router.withdrawERC20(CRVUSD, recipient, amount);
 
@@ -102,15 +99,13 @@ contract Router_withdrawERC20 is Test, RouterHelper {
 
             router.withdrawERC20(CRVUSD, recipient, amount);
         } else {
-            // emit WithdrawERC20(address indexed,address indexed,uint256);
-            vm.expectEmit(true, true, false, true, address(router));
-
-            emit WithdrawERC20(CRVUSD, recipient, amount);
-
-            // emit Transfer(address indexed,address indexed,uint256);
             vm.expectEmit(true, true, false, true, CRVUSD);
 
             emit Transfer(address(router), recipient, amount);
+
+            vm.expectEmit(true, true, false, true, address(router));
+
+            emit WithdrawERC20(CRVUSD, recipient, amount);
 
             router.withdrawERC20(CRVUSD, recipient, amount);
 

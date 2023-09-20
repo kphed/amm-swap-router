@@ -70,6 +70,10 @@ contract RouterHelper is Test {
         deal(USDT, address(this), 1_000e6);
         deal(USDC, address(this), 1_000e6);
         deal(WSTETH, address(this), 1_000e6);
+        deal(CRVUSD, address(router), 1);
+        deal(USDT, address(router), 1);
+        deal(USDC, address(router), 1);
+        deal(WSTETH, address(router), 1);
 
         vm.startPrank(TEST_ACCOUNT);
 

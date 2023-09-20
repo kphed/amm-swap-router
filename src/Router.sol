@@ -83,10 +83,10 @@ contract Router is Ownable, ReentrancyGuard {
         address recipient,
         uint256 amount
     ) external onlyOwner {
-        emit WithdrawERC20(token, recipient, amount);
-
         // Throws if `recipient` is the zero address or if `amount` exceeds our balance.
         token.safeTransfer(recipient, amount);
+
+        emit WithdrawERC20(token, recipient, amount);
     }
 
     /**
@@ -108,8 +108,6 @@ contract Router is Ownable, ReentrancyGuard {
                 keccak256(abi.encodePacked(pairInputToken, pairOutputToken))
             ].push();
 
-            emit AddRoute(pairInputToken, pairOutputToken, newRoute);
-
             for (uint256 i = 0; i < newRouteLength; ++i) {
                 IPath path = newRoute[i];
                 (address inputToken, address outputToken) = path.tokens();
@@ -125,6 +123,8 @@ contract Router is Ownable, ReentrancyGuard {
                     type(uint256).max
                 );
             }
+
+            emit AddRoute(pairInputToken, pairOutputToken, newRoute);
         }
     }
 
@@ -136,9 +136,9 @@ contract Router is Ownable, ReentrancyGuard {
     function removeRoute(bytes32 pair, uint256 index) external onlyOwner {
         if (pair == bytes32(0)) revert InvalidPair();
 
-        unchecked {
-            IPath[][] storage routes = _routes[pair];
+        IPath[][] storage routes = _routes[pair];
 
+        unchecked {
             // Should be checked by the owner before calling.
             uint256 lastIndex = routes.length - 1;
 
@@ -164,10 +164,10 @@ contract Router is Ownable, ReentrancyGuard {
         IPath path = _routes[pair][routeIndex][pathIndex];
         (address inputToken, address outputToken) = path.tokens();
 
-        emit ApprovePath(path, inputToken, outputToken);
-
         inputToken.safeApproveWithRetry(address(path), type(uint256).max);
         outputToken.safeApproveWithRetry(address(path), type(uint256).max);
+
+        emit ApprovePath(path, inputToken, outputToken);
     }
 
     /**
@@ -190,8 +190,7 @@ contract Router is Ownable, ReentrancyGuard {
         address referrer,
         PermitParams calldata permitParams
     ) external nonReentrant returns (uint256 output) {
-        // Marshall struct arguments based on swap input values for validation
-        // purposes and to reduce external calls for verifying balances.
+        // Marshall certain method arguments based on the call args for validation purposes.
         _PERMIT2.permitTransferFrom(
             ISignatureTransfer.PermitTransferFrom({
                 permitted: ISignatureTransfer.TokenPermissions({
@@ -235,9 +234,7 @@ contract Router is Ownable, ReentrancyGuard {
             // Will not overflow since `output` is 99.98% of `originalOutput`.
             uint256 fees = originalOutput - output;
 
-            emit Swap(inputToken, outputToken, routeIndex, output, fees);
-
-            // Transfer the output to the permit2 owner (i.e. spender), not `msg.sender`!
+            // Transfer the output tokens to the signer, not `msg.sender`!
             // This enables token holders to delegate swaps and the associated gas fees.
             outputToken.safeTransfer(permitParams.owner, output);
 
@@ -247,6 +244,8 @@ contract Router is Ownable, ReentrancyGuard {
                 // Will not overflow since `fees` is 2 or greater.
                 outputToken.safeTransfer(referrer, fees / 2);
             }
+
+            emit Swap(inputToken, outputToken, routeIndex, output, fees);
         }
     }
 

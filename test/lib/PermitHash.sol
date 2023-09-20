@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {IAllowanceTransfer} from "test/interfaces/IAllowanceTransfer.sol";
+import {IAllowanceTransfer} from "src/interfaces/IAllowanceTransfer.sol";
 import {ISignatureTransfer} from "src/interfaces/ISignatureTransfer.sol";
 
 library PermitHash {

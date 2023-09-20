@@ -3,8 +3,9 @@ pragma solidity 0.8.19;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {ISignatureTransfer} from "src/interfaces/ISignatureTransfer.sol";
+import {IPermit2, ISignatureTransfer} from "src/interfaces/IPermit2.sol";
 import {IPath} from "src/interfaces/IPath.sol";
 import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
 
@@ -15,6 +16,7 @@ import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
  */
 contract Router is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
+    using SafeCastLib for uint256;
     using FixedPointMathLib for uint256;
 
     struct PermitParams {
@@ -28,9 +30,8 @@ contract Router is Ownable, ReentrancyGuard {
     uint256 private constant _FEE_DEDUCTED = 9_998;
     uint256 private constant _FEE_BASE = 10_000;
 
-    // Canonical Uniswap Permit2 contract address.
-    ISignatureTransfer private constant _PERMIT2 =
-        ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    IPermit2 private constant _PERMIT2 =
+        IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // Swap routes for a given token pair - each route is comprised of 1 or more paths.
     mapping(bytes32 pair => IPath[][] routes) private _routes;
@@ -169,43 +170,25 @@ contract Router is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Swap an input token for an output token over a series of paths.
-     * @param  inputToken    address       Token to swap.
-     * @param  outputToken   address       Token to receive.
-     * @param  input         uint256       Amount of input token to swap.
-     * @param  minOutput     uint256       Minimum amount of output token to receive.
-     * @param  routeIndex    uint256       Route index.
-     * @param  referrer      address       Referrer address (receives 50% of the fees if specified).
-     * @param  permitParams  PermitParams  Data for carrying out a permitTransferFrom.
-     * @return output        uint256       Amount of output token received from the swap.
+     * @notice Swap an input token for an output token.
+     * @param  inputToken       address  Token to swap.
+     * @param  outputToken      address  Token to receive.
+     * @param  input            uint256  Amount of input token to swap.
+     * @param  minOutput        uint256  Minimum amount of output token to receive.
+     * @param  outputRecipient  address  Output token recipient address.
+     * @param  routeIndex       uint256  Route index.
+     * @param  referrer         address  Referrer address (receives 50% of the fees if specified).
+     * @return output           uint256  Amount of output token received from the swap.
      */
-    function swap(
+    function _swap(
         address inputToken,
         address outputToken,
         uint256 input,
         uint256 minOutput,
+        address outputRecipient,
         uint256 routeIndex,
-        address referrer,
-        PermitParams calldata permitParams
-    ) external nonReentrant returns (uint256 output) {
-        // Marshall certain method arguments based on the call args for validation purposes.
-        _PERMIT2.permitTransferFrom(
-            ISignatureTransfer.PermitTransferFrom({
-                permitted: ISignatureTransfer.TokenPermissions({
-                    token: inputToken,
-                    amount: input
-                }),
-                nonce: permitParams.nonce,
-                deadline: permitParams.deadline
-            }),
-            ISignatureTransfer.SignatureTransferDetails({
-                to: address(this),
-                requestedAmount: input
-            }),
-            permitParams.owner,
-            permitParams.signature
-        );
-
+        address referrer
+    ) private returns (uint256 output) {
         IPath[] memory route = _routes[
             keccak256(abi.encodePacked(inputToken, outputToken))
         ][routeIndex];
@@ -232,9 +215,7 @@ contract Router is Ownable, ReentrancyGuard {
             // Will not overflow since `output` is 99.98% of `originalOutput`.
             uint256 fees = originalOutput - output;
 
-            // Transfer the output tokens to the signer, not `msg.sender`!
-            // This enables token holders to delegate swaps and the associated gas fees.
-            outputToken.safeTransfer(permitParams.owner, output);
+            outputToken.safeTransfer(outputRecipient, output);
 
             // If the referrer is non-zero, split 50% of the fees (rounded down) with the referrer.
             // The remainder is kept by the contract which can later be withdrawn by the owner.
@@ -245,6 +226,102 @@ contract Router is Ownable, ReentrancyGuard {
 
             emit Swap(inputToken, outputToken, routeIndex, output, fees);
         }
+    }
+
+    /**
+     * @notice Swap an input token for an output token (standard ERC20 approval).
+     * @dev    See `_swap` for additional parameter details.
+     */
+    function swap(
+        address inputToken,
+        address outputToken,
+        uint256 input,
+        uint256 minOutput,
+        uint256 routeIndex,
+        address referrer
+    ) external nonReentrant returns (uint256) {
+        inputToken.safeTransferFrom(msg.sender, address(this), input);
+
+        return
+            _swap(
+                inputToken,
+                outputToken,
+                input,
+                minOutput,
+                msg.sender,
+                routeIndex,
+                referrer
+            );
+    }
+
+    /**
+     * @notice Swap an input token for an output token (Permit2 allowance-based approval).
+     * @dev    See `_swap` for additional parameter details.
+     */
+    function swap(
+        address inputToken,
+        address outputToken,
+        uint160 input,
+        uint256 minOutput,
+        uint256 routeIndex,
+        address referrer
+    ) external nonReentrant returns (uint256) {
+        _PERMIT2.transferFrom(msg.sender, address(this), input, inputToken);
+
+        return
+            _swap(
+                inputToken,
+                outputToken,
+                input,
+                minOutput,
+                msg.sender,
+                routeIndex,
+                referrer
+            );
+    }
+
+    /**
+     * @notice Swap an input token for an output token (Permit2 signature-based approval).
+     * @dev    See `_swap` for parameter details.
+     */
+    function swap(
+        address inputToken,
+        address outputToken,
+        uint256 input,
+        uint256 minOutput,
+        uint256 routeIndex,
+        address referrer,
+        PermitParams calldata permitParams
+    ) external nonReentrant returns (uint256) {
+        _PERMIT2.permitTransferFrom(
+            ISignatureTransfer.PermitTransferFrom({
+                permitted: ISignatureTransfer.TokenPermissions({
+                    token: inputToken,
+                    amount: input
+                }),
+                nonce: permitParams.nonce,
+                deadline: permitParams.deadline
+            }),
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: input
+            }),
+            permitParams.owner,
+            permitParams.signature
+        );
+
+        return
+            _swap(
+                inputToken,
+                outputToken,
+                input,
+                minOutput,
+                // Transfer the output tokens to the input token owner, not `msg.sender`!
+                // This enables token holders to delegate swaps and the associated gas fees.
+                permitParams.owner,
+                routeIndex,
+                referrer
+            );
     }
 
     /**

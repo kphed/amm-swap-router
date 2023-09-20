@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {Ownable} from "solady/auth/Ownable.sol";
+import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
@@ -14,7 +14,7 @@ import {ReentrancyGuard} from "src/lib/ReentrancyGuard.sol";
  * @notice Cheap and efficient cross-AMM swaps.
  * @author kp (ppmoon69.eth)
  */
-contract Router is Ownable, ReentrancyGuard {
+contract Router is OwnableRoles, ReentrancyGuard {
     using SafeTransferLib for address;
     using SafeCastLib for uint256;
     using FixedPointMathLib for uint256;
@@ -69,11 +69,16 @@ contract Router is Ownable, ReentrancyGuard {
      * @param initialOwner  address  The initial owner of the contract.
      */
     constructor(address initialOwner) {
+        // The owner has the ability to call any privileged method on this contract.
         _initializeOwner(initialOwner);
     }
 
     /**
      * @notice Withdraw an ERC20 token from the contract.
+     * @dev    Can only be called by accounts with role #3 (critical security clearance).
+     * @dev    Accounts with this role can transfer the contract's fee token balances to
+     * @dev    arbitrary addresses, which is why this role has the highest security clearance
+     * @dev    and should be reserved for the most trusted accounts.
      * @param  token      address  Token to withdraw.
      * @param  recipient  address  Recipient of the tokens.
      * @param  amount     uint256  Token amount.
@@ -82,7 +87,7 @@ contract Router is Ownable, ReentrancyGuard {
         address token,
         address recipient,
         uint256 amount
-    ) external onlyOwner {
+    ) external onlyOwnerOrRoles(_ROLE_3) {
         // Throws if `recipient` is the zero address or if `amount` exceeds our balance.
         token.safeTransfer(recipient, amount);
 
@@ -91,9 +96,15 @@ contract Router is Ownable, ReentrancyGuard {
 
     /**
      * @notice Add a route.
+     * @dev    Can only be called by accounts with role 2 (high security clearance).
+     * @dev    Path contracts should be created following the internal procedures and
+     * @dev    the liquidity pools backing them should be heavily scrutinized. That said,
+     * @dev    the `_swap` function has logic to account for malicious/faulty pools.
      * @param  newRoute  IPath[]  New swap route.
      */
-    function addRoute(IPath[] calldata newRoute) external onlyOwner {
+    function addRoute(
+        IPath[] calldata newRoute
+    ) external onlyOwnerOrRoles(_ROLE_2) {
         uint256 newRouteLength = newRoute.length;
 
         if (newRouteLength == 0) revert EmptyArray();
@@ -130,10 +141,17 @@ contract Router is Ownable, ReentrancyGuard {
 
     /**
      * @notice Remove a route.
+     * @dev    Can only be called by accounts with role 1 (medium security clearance).
+     * @dev    Removing routes can affect liquidity but since routes can never be fully
+     * @dev    removed, this is a *slightly* lower risk operation than adding routes.
+     * @dev    It is still a potentially dangerous operation and caution should be taken!
      * @param  pair   bytes32  Token pair.
      * @param  index  uint256  Route index.
      */
-    function removeRoute(bytes32 pair, uint256 index) external onlyOwner {
+    function removeRoute(
+        bytes32 pair,
+        uint256 index
+    ) external onlyOwnerOrRoles(_ROLE_1) {
         if (pair == bytes32(0)) revert InvalidPair();
 
         IPath[][] storage routes = _routes[pair];
@@ -155,6 +173,12 @@ contract Router is Ownable, ReentrancyGuard {
 
     /**
      * @notice Approve a path contract to transfer our tokens.
+     * @dev    Can only be called by accounts with role 0 (low security clearance).
+     * @dev    Calling this method and re-upping the path liquidity is considered a
+     * @dev    very low risk operation that should have zero impact on user funds.
+     * @dev    Even if a path contract were malicious, `_swap` checks the output token
+     * @dev    balance difference to determine whether a swap fulfills the minimum output,
+     * @dev    ensuring the transaction will only be successful if the swap was.
      * @param  pair        bytes32  Token pair.
      * @param  routeIndex  uint256  Route index.
      * @param  pathIndex   uint256  Path index.
@@ -163,7 +187,7 @@ contract Router is Ownable, ReentrancyGuard {
         bytes32 pair,
         uint256 routeIndex,
         uint256 pathIndex
-    ) external onlyOwner {
+    ) external onlyOwnerOrRoles(_ROLE_0) {
         IPath path = _routes[pair][routeIndex][pathIndex];
         (address inputToken, address outputToken) = path.tokens();
 

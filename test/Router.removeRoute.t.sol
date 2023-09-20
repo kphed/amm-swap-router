@@ -40,6 +40,22 @@ contract Router_removeRoute is Test, RouterHelper {
         router.removeRoute(pair, index);
     }
 
+    function testCannotRemoveRouteNoRoutesRemaining() external {
+        address msgSender = router.owner();
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+
+        IPath[][] memory routes = router.getRoutes(pair);
+
+        for (uint256 i = 0; i < routes.length; ++i) {
+            vm.prank(msgSender);
+
+            if (i == routes.length - 1)
+                vm.expectRevert(Router.NoRoutesRemaining.selector);
+
+            router.removeRoute(pair, i);
+        }
+    }
+
     function testRemoveRoute() external {
         address msgSender = router.owner();
         bytes32 pair = _hashPair(CRVUSD, WETH);

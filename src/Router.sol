@@ -63,6 +63,7 @@ contract Router is Ownable, ReentrancyGuard {
     error InsufficientOutput();
     error InvalidPair();
     error EmptyArray();
+    error NoRoutesRemaining();
 
     /**
      * @param initialOwner  address  The initial owner of the contract.
@@ -140,6 +141,9 @@ contract Router is Ownable, ReentrancyGuard {
         unchecked {
             // Should be checked by the owner before calling.
             uint256 lastIndex = routes.length - 1;
+
+            // At least 1 route must be remaining.
+            if (lastIndex == 0) revert NoRoutesRemaining();
 
             if (index != lastIndex) routes[index] = routes[lastIndex];
 

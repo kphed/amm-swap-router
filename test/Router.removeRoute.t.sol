@@ -20,7 +20,8 @@ contract Router_removeRoute is Test, RouterHelper {
         bytes32 pair = _hashPair(CRVUSD, WETH);
         uint256 index = 0;
 
-        assertTrue(msgSender != router.owner());
+        assertTrue(msgSender != routerOwner);
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_1));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -29,7 +30,7 @@ contract Router_removeRoute is Test, RouterHelper {
     }
 
     function testCannotRemoveRouteInvalidPair() external {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         bytes32 pair = bytes32(0);
 
         uint256 index = 0;
@@ -41,7 +42,7 @@ contract Router_removeRoute is Test, RouterHelper {
     }
 
     function testCannotRemoveRouteNoRoutesRemaining() external {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         bytes32 pair = _hashPair(CRVUSD, WETH);
 
         IPath[][] memory routes = router.getRoutes(pair);
@@ -57,7 +58,7 @@ contract Router_removeRoute is Test, RouterHelper {
     }
 
     function testRemoveRoute() external {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         bytes32 pair = _hashPair(CRVUSD, WETH);
         uint256 index = 0;
         IPath[][] memory routesBefore = router.getRoutes(pair);
@@ -82,13 +83,22 @@ contract Router_removeRoute is Test, RouterHelper {
         }
     }
 
-    function testRemoveRouteFuzz(uint8 index) external {
+    function testRemoveRouteFuzz(bool useRole, uint8 index) external {
         bytes32 pair = _hashPair(CRVUSD, WETH);
         IPath[][] memory routesBefore = router.getRoutes(pair);
 
         vm.assume(index < routesBefore.length);
 
-        address msgSender = router.owner();
+        address msgSender;
+
+        if (useRole) {
+            msgSender = address(0);
+
+            _grantRole(msgSender, _ROLE_1);
+        } else {
+            msgSender = routerOwner;
+        }
+
         bytes32 removedRoute = keccak256(abi.encodePacked(routesBefore[index]));
         uint256 lastIndex = routesBefore.length - 1;
         bytes32 lastRoute = keccak256(

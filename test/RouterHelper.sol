@@ -260,4 +260,12 @@ contract RouterHelper is Test, OwnableRoles {
 
         return abi.encodePacked(r, s, v);
     }
+
+    function _grantRole(address target, uint256 role) internal {
+        vm.prank(routerOwner);
+
+        router.grantRoles(target, role);
+
+        assertTrue(router.hasAnyRole(target, role));
+    }
 }

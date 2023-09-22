@@ -93,17 +93,9 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         address msgSender;
 
         if (useRole) {
-            vm.startPrank(routerOwner);
-
             msgSender = address(0);
 
-            assertTrue(msgSender != routerOwner);
-
-            router.grantRoles(msgSender, _ROLE_3);
-
-            assertTrue(router.hasAnyRole(msgSender, _ROLE_3));
-
-            vm.stopPrank();
+            _grantRole(msgSender, _ROLE_3);
         } else {
             msgSender = routerOwner;
         }

@@ -32,7 +32,8 @@ contract Router_addRoute is Test, RouterHelper {
     function testCannotAddRouteUnauthorized() external {
         address msgSender = address(0);
 
-        assertTrue(msgSender != router.owner());
+        assertTrue(msgSender != routerOwner);
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_2));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -41,7 +42,7 @@ contract Router_addRoute is Test, RouterHelper {
     }
 
     function testCannotAddRouteEmptyArray() external {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         route = new IPath[](0);
 
         vm.prank(msgSender);
@@ -50,8 +51,17 @@ contract Router_addRoute is Test, RouterHelper {
         router.addRoute(route);
     }
 
-    function testAddRoute() external {
-        address msgSender = router.owner();
+    function testAddRoute(bool useRole) external {
+        address msgSender;
+
+        if (useRole) {
+            msgSender = address(0);
+
+            _grantRole(msgSender, _ROLE_2);
+        } else {
+            msgSender = routerOwner;
+        }
+
         (address pairInputToken, ) = route[0].tokens();
         (, address pairOutputToken) = route[route.length - 1].tokens();
         bytes32 pair = _hashPair(pairInputToken, pairOutputToken);

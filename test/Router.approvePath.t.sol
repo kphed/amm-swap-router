@@ -34,7 +34,7 @@ contract Router_approvePath is Test, RouterHelper {
         uint256 pathIndex = 0;
 
         assertTrue(msgSender != routerOwner);
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_0));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_APPROVE_PATH));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -48,11 +48,11 @@ contract Router_approvePath is Test, RouterHelper {
         uint256 routeIndex = 0;
         uint256 pathIndex = 0;
 
-        _grantRole(msgSender, _ROLE_1);
+        _grantRole(msgSender, ROLE_REMOVE_ROUTE);
 
         assertTrue(msgSender != routerOwner);
-        assertTrue(router.hasAnyRole(msgSender, _ROLE_1));
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_0));
+        assertTrue(router.hasAnyRole(msgSender, ROLE_REMOVE_ROUTE));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_APPROVE_PATH));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -66,7 +66,7 @@ contract Router_approvePath is Test, RouterHelper {
         if (useRole) {
             msgSender = address(0);
 
-            _grantRole(msgSender, _ROLE_0);
+            _grantRole(msgSender, ROLE_APPROVE_PATH);
         } else {
             msgSender = routerOwner;
         }

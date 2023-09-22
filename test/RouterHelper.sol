@@ -42,6 +42,10 @@ contract RouterHelper is Test, OwnableRoles {
     uint256 public constant ROUTER_FEE_BASE = 10_000;
     ISignatureTransfer public constant PERMIT2 =
         ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    uint256 public constant ROLE_WITHDRAW_ERC20 = _ROLE_3;
+    uint256 public constant ROLE_ADD_ROUTE = _ROLE_2;
+    uint256 public constant ROLE_REMOVE_ROUTE = _ROLE_1;
+    uint256 public constant ROLE_APPROVE_PATH = _ROLE_0;
 
     // Anvil test account and private key.
     address public constant TEST_ACCOUNT =

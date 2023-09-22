@@ -19,6 +19,7 @@ contract Router is OwnableRoles, ReentrancyGuard {
     using SafeCastLib for uint256;
     using FixedPointMathLib for uint256;
 
+    // Not stored and does not need to be tightly packed.
     struct PermitParams {
         address owner;
         uint256 nonce;
@@ -30,6 +31,14 @@ contract Router is OwnableRoles, ReentrancyGuard {
     uint256 private constant _FEE_DEDUCTED = 9_998;
     uint256 private constant _FEE_BASE = 10_000;
 
+    // Role aliases for improved code readability.
+    uint256 private constant _ROLE_WITHDRAW_ERC20 = _ROLE_3;
+    uint256 private constant _ROLE_ADD_ROUTE = _ROLE_2;
+    uint256 private constant _ROLE_REMOVE_ROUTE = _ROLE_1;
+    uint256 private constant _ROLE_APPROVE_PATH = _ROLE_0;
+
+    // Refer to the following for a list of Permit2 deployments:
+    // https://docs.uniswap.org/contracts/v3/reference/deployments.
     IPermit2 private constant _PERMIT2 =
         IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
@@ -87,7 +96,7 @@ contract Router is OwnableRoles, ReentrancyGuard {
         address token,
         address recipient,
         uint256 amount
-    ) external onlyOwnerOrRoles(_ROLE_3) {
+    ) external onlyOwnerOrRoles(_ROLE_WITHDRAW_ERC20) {
         // Throws if `recipient` is the zero address or if `amount` exceeds our balance.
         token.safeTransfer(recipient, amount);
 
@@ -104,7 +113,7 @@ contract Router is OwnableRoles, ReentrancyGuard {
      */
     function addRoute(
         IPath[] calldata newRoute
-    ) external onlyOwnerOrRoles(_ROLE_2) {
+    ) external onlyOwnerOrRoles(_ROLE_ADD_ROUTE) {
         uint256 newRouteLength = newRoute.length;
 
         if (newRouteLength == 0) revert EmptyArray();
@@ -151,7 +160,7 @@ contract Router is OwnableRoles, ReentrancyGuard {
     function removeRoute(
         bytes32 pair,
         uint256 index
-    ) external onlyOwnerOrRoles(_ROLE_1) {
+    ) external onlyOwnerOrRoles(_ROLE_REMOVE_ROUTE) {
         if (pair == bytes32(0)) revert InvalidPair();
 
         IPath[][] storage routes = _routes[pair];
@@ -187,7 +196,7 @@ contract Router is OwnableRoles, ReentrancyGuard {
         bytes32 pair,
         uint256 routeIndex,
         uint256 pathIndex
-    ) external onlyOwnerOrRoles(_ROLE_0) {
+    ) external onlyOwnerOrRoles(_ROLE_APPROVE_PATH) {
         IPath path = _routes[pair][routeIndex][pathIndex];
         (address inputToken, address outputToken) = path.tokens();
 

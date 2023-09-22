@@ -21,7 +21,7 @@ contract Router_removeRoute is Test, RouterHelper {
         uint256 index = 0;
 
         assertTrue(msgSender != routerOwner);
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_1));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_REMOVE_ROUTE));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -34,11 +34,11 @@ contract Router_removeRoute is Test, RouterHelper {
         bytes32 pair = _hashPair(CRVUSD, WETH);
         uint256 index = 0;
 
-        _grantRole(msgSender, _ROLE_2);
+        _grantRole(msgSender, ROLE_ADD_ROUTE);
 
         assertTrue(msgSender != routerOwner);
-        assertTrue(router.hasAnyRole(msgSender, _ROLE_2));
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_1));
+        assertTrue(router.hasAnyRole(msgSender, ROLE_ADD_ROUTE));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_REMOVE_ROUTE));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -111,7 +111,7 @@ contract Router_removeRoute is Test, RouterHelper {
         if (useRole) {
             msgSender = address(0);
 
-            _grantRole(msgSender, _ROLE_1);
+            _grantRole(msgSender, ROLE_REMOVE_ROUTE);
         } else {
             msgSender = routerOwner;
         }

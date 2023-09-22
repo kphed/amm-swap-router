@@ -33,7 +33,7 @@ contract Router_addRoute is Test, RouterHelper {
         address msgSender = address(0);
 
         assertTrue(msgSender != routerOwner);
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_2));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_ADD_ROUTE));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -44,11 +44,11 @@ contract Router_addRoute is Test, RouterHelper {
     function testCannotAddRouteUnauthorizedWrongRole() external {
         address msgSender = address(0);
 
-        _grantRole(msgSender, _ROLE_3);
+        _grantRole(msgSender, ROLE_WITHDRAW_ERC20);
 
         assertTrue(msgSender != routerOwner);
-        assertTrue(router.hasAnyRole(msgSender, _ROLE_3));
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_2));
+        assertTrue(router.hasAnyRole(msgSender, ROLE_WITHDRAW_ERC20));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_ADD_ROUTE));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -72,7 +72,7 @@ contract Router_addRoute is Test, RouterHelper {
         if (useRole) {
             msgSender = address(0);
 
-            _grantRole(msgSender, _ROLE_2);
+            _grantRole(msgSender, ROLE_ADD_ROUTE);
         } else {
             msgSender = routerOwner;
         }

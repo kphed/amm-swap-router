@@ -22,7 +22,7 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         uint256 amount = 1;
 
         assertTrue(msgSender != routerOwner);
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_3));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_WITHDRAW_ERC20));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -35,11 +35,11 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         address recipient = address(this);
         uint256 amount = 1;
 
-        _grantRole(msgSender, _ROLE_0);
+        _grantRole(msgSender, ROLE_APPROVE_PATH);
 
         assertTrue(msgSender != routerOwner);
-        assertTrue(router.hasAnyRole(msgSender, _ROLE_0));
-        assertFalse(router.hasAnyRole(msgSender, _ROLE_3));
+        assertTrue(router.hasAnyRole(msgSender, ROLE_APPROVE_PATH));
+        assertFalse(router.hasAnyRole(msgSender, ROLE_WITHDRAW_ERC20));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -112,7 +112,7 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         if (useRole) {
             msgSender = address(0);
 
-            _grantRole(msgSender, _ROLE_3);
+            _grantRole(msgSender, ROLE_WITHDRAW_ERC20);
         } else {
             msgSender = routerOwner;
         }

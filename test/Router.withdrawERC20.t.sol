@@ -21,7 +21,8 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         address recipient = address(this);
         uint256 amount = 1;
 
-        assertTrue(msgSender != router.owner());
+        assertTrue(msgSender != routerOwner);
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_3));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -30,7 +31,7 @@ contract Router_withdrawERC20 is Test, RouterHelper {
     }
 
     function testCannotWithdrawERC20_TransferFailed_InvalidAmount() external {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         address recipient = address(this);
         uint256 amount = CRVUSD.balanceOf(address(router)) + 1;
 
@@ -43,7 +44,7 @@ contract Router_withdrawERC20 is Test, RouterHelper {
     function testCannotWithdrawERC20_TransferFailed_InvalidRecipient()
         external
     {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         address recipient = address(0);
         uint256 amount = CRVUSD.balanceOf(address(router));
 
@@ -54,7 +55,7 @@ contract Router_withdrawERC20 is Test, RouterHelper {
     }
 
     function testWithdrawERC20() external {
-        address msgSender = router.owner();
+        address msgSender = routerOwner;
         address recipient = address(this);
         uint256 amount = CRVUSD.balanceOf(address(router));
         uint256 recipientBalanceBefore = CRVUSD.balanceOf(recipient);
@@ -82,13 +83,31 @@ contract Router_withdrawERC20 is Test, RouterHelper {
     }
 
     function testWithdrawERC20Fuzz(
+        bool useRole,
         address recipient,
         uint256 crvusdBalance,
         uint256 amount
     ) external {
         deal(CRVUSD, address(router), crvusdBalance);
 
-        address msgSender = router.owner();
+        address msgSender;
+
+        if (useRole) {
+            vm.startPrank(routerOwner);
+
+            msgSender = address(0);
+
+            assertTrue(msgSender != routerOwner);
+
+            router.grantRoles(msgSender, _ROLE_3);
+
+            assertTrue(router.hasAnyRole(msgSender, _ROLE_3));
+
+            vm.stopPrank();
+        } else {
+            msgSender = routerOwner;
+        }
+
         uint256 recipientBalanceBefore = CRVUSD.balanceOf(recipient);
         uint256 routerBalanceBefore = CRVUSD.balanceOf(address(router));
 

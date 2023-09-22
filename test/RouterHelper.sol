@@ -2,6 +2,7 @@
 pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
+import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {Router} from "src/Router.sol";
@@ -12,7 +13,7 @@ import {CurveCryptoV2Factory} from "src/paths/CurveCryptoV2Factory.sol";
 import {ISignatureTransfer} from "src/interfaces/ISignatureTransfer.sol";
 import {PermitHash} from "test/lib/PermitHash.sol";
 
-contract RouterHelper is Test {
+contract RouterHelper is Test, OwnableRoles {
     using SafeTransferLib for address;
     using FixedPointMathLib for uint256;
 
@@ -54,6 +55,7 @@ contract RouterHelper is Test {
     CurveCryptoV2Factory public immutable curveCryptoV2Factory =
         new CurveCryptoV2Factory();
     Router public immutable router = new Router(address(this));
+    address public immutable routerOwner;
 
     event Swap(
         address indexed inputToken,
@@ -66,6 +68,8 @@ contract RouterHelper is Test {
     receive() external payable {}
 
     constructor() {
+        routerOwner = router.owner();
+
         deal(CRVUSD, address(this), 1_000e18);
         deal(USDT, address(this), 1_000e6);
         deal(USDC, address(this), 1_000e6);

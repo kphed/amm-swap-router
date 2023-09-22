@@ -29,6 +29,23 @@ contract Router_removeRoute is Test, RouterHelper {
         router.removeRoute(pair, index);
     }
 
+    function testCannotRemoveRouteUnauthorizedWrongRole() external {
+        address msgSender = address(0);
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 index = 0;
+
+        _grantRole(msgSender, _ROLE_2);
+
+        assertTrue(msgSender != routerOwner);
+        assertTrue(router.hasAnyRole(msgSender, _ROLE_2));
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_1));
+
+        vm.prank(msgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        router.removeRoute(pair, index);
+    }
+
     function testCannotRemoveRouteInvalidPair() external {
         address msgSender = routerOwner;
         bytes32 pair = bytes32(0);

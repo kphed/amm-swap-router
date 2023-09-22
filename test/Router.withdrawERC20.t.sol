@@ -30,6 +30,23 @@ contract Router_withdrawERC20 is Test, RouterHelper {
         router.withdrawERC20(CRVUSD, recipient, amount);
     }
 
+    function testCannotWithdrawERC20UnauthorizedWrongRole() external {
+        address msgSender = address(0);
+        address recipient = address(this);
+        uint256 amount = 1;
+
+        _grantRole(msgSender, _ROLE_0);
+
+        assertTrue(msgSender != routerOwner);
+        assertTrue(router.hasAnyRole(msgSender, _ROLE_0));
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_3));
+
+        vm.prank(msgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        router.withdrawERC20(CRVUSD, recipient, amount);
+    }
+
     function testCannotWithdrawERC20_TransferFailed_InvalidAmount() external {
         address msgSender = routerOwner;
         address recipient = address(this);

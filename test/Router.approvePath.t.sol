@@ -33,7 +33,8 @@ contract Router_approvePath is Test, RouterHelper {
         uint256 routeIndex = 0;
         uint256 pathIndex = 0;
 
-        assertTrue(msgSender != router.owner());
+        assertTrue(msgSender != routerOwner);
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_0));
 
         vm.prank(msgSender);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -41,8 +42,35 @@ contract Router_approvePath is Test, RouterHelper {
         router.approvePath(pair, routeIndex, pathIndex);
     }
 
-    function testApprovePath() external {
-        address msgSender = router.owner();
+    function testCannotApprovePathUnauthorizedWrongRole() external {
+        address msgSender = address(0);
+        bytes32 pair = _hashPair(CRVUSD, WETH);
+        uint256 routeIndex = 0;
+        uint256 pathIndex = 0;
+
+        _grantRole(msgSender, _ROLE_1);
+
+        assertTrue(msgSender != routerOwner);
+        assertTrue(router.hasAnyRole(msgSender, _ROLE_1));
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_0));
+
+        vm.prank(msgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        router.approvePath(pair, routeIndex, pathIndex);
+    }
+
+    function testApprovePath(bool useRole) external {
+        address msgSender;
+
+        if (useRole) {
+            msgSender = address(0);
+
+            _grantRole(msgSender, _ROLE_0);
+        } else {
+            msgSender = routerOwner;
+        }
+
         bytes32 pair = _hashPair(CRVUSD, WETH);
         uint256 routeIndex = 0;
         uint256 pathIndex = 0;

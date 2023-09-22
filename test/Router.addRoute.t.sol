@@ -41,6 +41,21 @@ contract Router_addRoute is Test, RouterHelper {
         router.addRoute(route);
     }
 
+    function testCannotAddRouteUnauthorizedWrongRole() external {
+        address msgSender = address(0);
+
+        _grantRole(msgSender, _ROLE_3);
+
+        assertTrue(msgSender != routerOwner);
+        assertTrue(router.hasAnyRole(msgSender, _ROLE_3));
+        assertFalse(router.hasAnyRole(msgSender, _ROLE_2));
+
+        vm.prank(msgSender);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        router.addRoute(route);
+    }
+
     function testCannotAddRouteEmptyArray() external {
         address msgSender = routerOwner;
         route = new IPath[](0);

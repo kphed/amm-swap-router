@@ -6,6 +6,6 @@ import {RouterHelper} from "test/RouterHelper.sol";
 
 contract Router_constructor is Test, RouterHelper {
     function testConstructor() external {
-        assertEq(address(this), router.owner());
+        assertEq(address(this), routerOwner);
     }
 }

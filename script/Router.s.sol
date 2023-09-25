@@ -69,11 +69,6 @@ contract RouterScript is Script {
             uniswapV3Factory.create(UNISWAP_WSTETH_WETH, false)
         );
 
-        USDC.safeTransfer(address(curveUSDC_CRVUSD), 1);
-        CRVUSD.safeTransfer(address(curveUSDC_CRVUSD), 1);
-        USDT.safeTransfer(address(curveUSDT_CRVUSD), 1);
-        CRVUSD.safeTransfer(address(curveUSDT_CRVUSD), 1);
-
         IPath[] memory routes = new IPath[](2);
         routes[0] = IPath(curveUSDC_CRVUSD);
         routes[1] = IPath(uniswapUSDC_WETH);
@@ -120,11 +115,6 @@ contract RouterScript is Script {
             uniswapV3Factory.create(UNISWAP_WSTETH_WETH, true)
         );
 
-        USDC.safeTransfer(address(curveUSDC_CRVUSD), 1);
-        CRVUSD.safeTransfer(address(curveUSDC_CRVUSD), 1);
-        USDT.safeTransfer(address(curveUSDT_CRVUSD), 1);
-        CRVUSD.safeTransfer(address(curveUSDT_CRVUSD), 1);
-
         IPath[] memory routes = new IPath[](2);
         routes[0] = IPath(uniswapUSDC_WETH);
         routes[1] = IPath(curveUSDC_CRVUSD);
@@ -154,12 +144,6 @@ contract RouterScript is Script {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
 
         Router router = new Router(vm.envAddress("OWNER"));
-
-        WSTETH.safeTransfer(address(router), 1);
-        WETH.safeTransfer(address(router), 1);
-        USDC.safeTransfer(address(router), 1);
-        USDT.safeTransfer(address(router), 1);
-        CRVUSD.safeTransfer(address(router), 1);
 
         CurveStableSwapFactory curveStableSwapFactory = new CurveStableSwapFactory();
         UniswapV3Factory uniswapV3Factory = new UniswapV3Factory();

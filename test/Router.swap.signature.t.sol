@@ -11,7 +11,7 @@ import {SignatureVerification} from "test/lib/SignatureVerification.sol";
 contract Router_swap_signature is Test, RouterHelper {
     using SafeTransferLib for address;
 
-    // Default but modifiabl swap params (declaring as storage variables to avoid "stack too deep").
+    // Default but modifiable swap params (declaring as storage variables to avoid "stack too deep").
     address public msgSender = address(this);
     address public permitOwner = TEST_ACCOUNT;
     uint256 public input = 1_000e18;

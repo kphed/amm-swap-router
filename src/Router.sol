@@ -82,6 +82,14 @@ contract Router is OwnableRoles, ReentrancyGuard {
         _initializeOwner(initialOwner);
     }
 
+    // Overridden to enforce 2-step ownership transfers.
+    function transferOwnership(
+        address newOwner
+    ) public payable override onlyOwner {}
+
+    // Overridden to enforce 2-step ownership transfers.
+    function renounceOwnership() public payable override onlyOwner {}
+
     /**
      * @notice Withdraw an ERC20 token from the contract.
      * @dev    Can only be called by accounts with role #3 (critical security clearance).
@@ -440,12 +448,4 @@ contract Router is OwnableRoles, ReentrancyGuard {
     function getRoutes(bytes32 pair) external view returns (IPath[][] memory) {
         return _routes[pair];
     }
-
-    // Overridden to enforce 2-step ownership transfers.
-    function transferOwnership(
-        address newOwner
-    ) public payable override onlyOwner {}
-
-    // Overridden to enforce 2-step ownership transfers.
-    function renounceOwnership() public payable override onlyOwner {}
 }

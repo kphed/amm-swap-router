@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity ^0.8.0;
 
 import {LibClone} from "solady/utils/LibClone.sol";
 import {ICurveCryptoV2, CurveCryptoV2} from "src/paths/CurveCryptoV2.sol";
